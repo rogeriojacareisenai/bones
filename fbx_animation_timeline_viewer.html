@@ -73,7 +73,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Rigging & Keyframe Animator</h1>
-                <p class="text-xs text-slate-400">Linha do Tempo com Importação/Exportação e Context Menu</p>
+                <p class="text-xs text-slate-400">Edição de Ossos na Lista, Importação/Exportação e Menu de Contexto</p>
             </div>
         </div>
 
@@ -89,7 +89,6 @@
                 <span>Salvar alterações</span>
             </button>
 
-            <!-- Novo Botão de Importação -->
             <label class="cursor-pointer bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-file-import"></i>
                 <span>Importar Keyframes</span>
@@ -418,10 +417,9 @@
             saveProjectBtn.addEventListener('click', () => saveProjectState(true));
             fileInput.addEventListener('change', (e) => { if (e.target.files.length) loadFBXFile(e.target.files[0]); });
             
-            // Listener para importar keyframes
             importAnimInput.addEventListener('change', (e) => {
                 if (e.target.files.length) importKeyframesJSON(e.target.files[0]);
-                e.target.value = ''; // reseta
+                e.target.value = '';
             });
 
             playBtn.addEventListener('click', () => {
@@ -437,9 +435,8 @@
                 applyPoseAtTime(currentTime);
             });
 
-            // Eventos da Timeline & Menu de Contexto
             flashTimelineWrapper.addEventListener('mousedown', (e) => {
-                if (e.button === 0) { // Clique Esquerdo
+                if (e.button === 0) {
                     hideContextMenu();
                     isDraggingTimeline = true;
                     seekTimeline(e);
@@ -524,6 +521,8 @@
 
         function renameBone(bone, newName) {
             const oldName = bone.name;
+            if (oldName === newName) return;
+
             if (boneKeyframes[oldName]) {
                 boneKeyframes[newName] = boneKeyframes[oldName];
                 delete boneKeyframes[oldName];
@@ -535,7 +534,7 @@
 
             if (selectedBone === bone) {
                 selectedBoneRenameInput.value = newName;
-                activeBoneIndicator.textContent = `Osso: ${newName}`;
+                activeBoneIndicator.textContent = `Osso Ativo: ${newName}`;
             }
 
             renderBonesList();
@@ -673,17 +672,35 @@
             }
         }
 
+        // Renderização da Lista de Ossos com opção de Edição
         function renderBonesList() {
             bonesListContainer.innerHTML = '';
             boneCountEl.textContent = `${bonesList.length} ossos`;
 
             bonesList.forEach(bone => {
-                const btn = document.createElement('button');
-                btn.id = `bone-item-${bone.name}`;
-                btn.className = "w-full text-left px-3 py-2 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between border border-transparent";
-                btn.innerHTML = `<span><i class="fa-solid fa-bone text-indigo-400 mr-2"></i>${bone.name}</span>`;
-                btn.addEventListener('click', () => selectBone(bone));
-                bonesListContainer.appendChild(btn);
+                const container = document.createElement('div');
+                container.id = `bone-item-${bone.name}`;
+                container.className = "group w-full px-3 py-1.5 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between border border-transparent cursor-pointer";
+
+                const labelDiv = document.createElement('div');
+                labelDiv.className = "flex items-center space-x-2 truncate flex-1 mr-2";
+                labelDiv.innerHTML = `<i class="fa-solid fa-bone text-indigo-400 shrink-0"></i><span class="bone-name-text truncate">${bone.name}</span>`;
+
+                const editBtn = document.createElement('button');
+                editBtn.className = "opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-400 p-1 rounded transition shrink-0";
+                editBtn.title = "Renomear osso";
+                editBtn.innerHTML = `<i class="fa-solid fa-pen text-[10px]"></i>`;
+
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    startRenamingInList(container, bone);
+                });
+
+                container.appendChild(labelDiv);
+                container.appendChild(editBtn);
+
+                container.addEventListener('click', () => selectBone(bone));
+                bonesListContainer.appendChild(container);
             });
 
             if (selectedBone) {
@@ -692,6 +709,39 @@
                     activeBtn.classList.add('bg-blue-600/30', 'text-blue-300', 'border-blue-500/50', 'font-bold');
                 }
             }
+        }
+
+        // Permite editar o nome diretamente na lista
+        function startRenamingInList(container, bone) {
+            const textSpan = container.querySelector('.bone-name-text');
+            if (!textSpan) return;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = bone.name;
+            input.className = 'bg-slate-950 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-blue-300 font-bold focus:outline-none w-full';
+
+            const finishRename = () => {
+                const newName = input.value.trim();
+                if (newName && newName !== bone.name) {
+                    pushHistoryState();
+                    renameBone(bone, newName);
+                } else {
+                    renderBonesList();
+                }
+            };
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') finishRename();
+                if (e.key === 'Escape') renderBonesList();
+                e.stopPropagation();
+            });
+
+            input.addEventListener('blur', finishRename);
+
+            textSpan.replaceWith(input);
+            input.focus();
+            input.select();
         }
 
         function selectBone(bone) {
@@ -1040,7 +1090,6 @@
             downloadAnchor.remove();
         }
 
-        // Função de Importação de Keyframes JSON
         function importKeyframesJSON(file) {
             if (!currentModel) {
                 alert("Por favor, carregue um modelo FBX primeiro antes de importar keyframes.");
