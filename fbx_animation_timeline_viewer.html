@@ -39,13 +39,31 @@
         .flash-frame-tick.major { height: 12px; border-left-color: #94a3b8; }
         .flash-frame-number { position: absolute; top: 2px; font-size: 9px; font-family: monospace; color: #94a3b8; transform: translateX(-50%); }
         .flash-track-lane { height: 36px; background-color: #1e293b; position: relative; border-bottom: 1px solid #0f172a; }
-        .flash-keyframe { position: absolute; top: 50%; width: 12px; height: 12px; background-color: #f59e0b; border: 1.5px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 10; cursor: pointer; }
+        .flash-keyframe { position: absolute; top: 50%; width: 12px; height: 12px; background-color: #f59e0b; border: 1.5px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 10; cursor: pointer; transition: transform 0.1s; }
+        .flash-keyframe:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); background-color: #fbbf24; }
         .flash-interpolation-bar { position: absolute; top: 50%; height: 6px; background: linear-gradient(90deg, #3b82f6, #6366f1); transform: translateY(-50%); z-index: 5; border-radius: 3px; opacity: 0.85; border: 1px solid #1d4ed8; }
         .flash-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }
         .flash-playhead-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background-color: #ef4444; clip-path: polygon(0 0, 100% 0, 50% 100%); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Context Menu Customizado da Timeline -->
+    <div id="timeline-context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 w-48 text-xs font-medium text-slate-200 backdrop-blur-md">
+        <button id="ctx-add-keyframe" class="w-full text-left px-3 py-2 hover:bg-blue-600 hover:text-white flex items-center space-x-2 transition">
+            <i class="fa-solid fa-key text-amber-400 w-4"></i>
+            <span>Inserir Keyframe</span>
+        </button>
+        <button id="ctx-delete-keyframe" class="w-full text-left px-3 py-2 hover:bg-red-600 hover:text-white flex items-center space-x-2 transition">
+            <i class="fa-solid fa-trash-can text-red-400 w-4"></i>
+            <span>Excluir Keyframe</span>
+        </button>
+        <div class="border-t border-slate-800 my-1"></div>
+        <button id="ctx-clear-all" class="w-full text-left px-3 py-2 hover:bg-red-700 hover:text-white flex items-center space-x-2 transition text-red-400">
+            <i class="fa-solid fa-broom w-4"></i>
+            <span>Limpar Timeline do Osso</span>
+        </button>
+    </div>
 
     <!-- Header -->
     <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-lg z-20">
@@ -55,7 +73,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Rigging & Keyframe Animator</h1>
-                <p class="text-xs text-slate-400">Linha do Tempo Individual por Osso e Interpolação Suave</p>
+                <p class="text-xs text-slate-400">Linha do Tempo com Importação/Exportação e Context Menu</p>
             </div>
         </div>
 
@@ -66,10 +84,17 @@
                 <input type="file" id="fileInput" accept=".fbx" class="hidden">
             </label>
 
-            <button id="saveProjectBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition" title="Salvar alterações deste projeto">
+            <button id="saveProjectBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-floppy-disk"></i>
                 <span>Salvar alterações</span>
             </button>
+
+            <!-- Novo Botão de Importação -->
+            <label class="cursor-pointer bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-file-import"></i>
+                <span>Importar Keyframes</span>
+                <input type="file" id="importAnimInput" accept=".json" class="hidden">
+            </label>
 
             <button id="exportAnimBtn" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-download"></i>
@@ -109,7 +134,7 @@
                 </button>
             </div>
 
-            <!-- Painel de Detalhes e Renomeação do Osso Selecionado -->
+            <!-- Painel do Osso Selecionado -->
             <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-2xl shadow-xl text-xs z-10 hidden w-80">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate flex-1 mr-2">
@@ -152,7 +177,7 @@
                 <div class="text-center py-12 text-slate-500 text-xs">Carregue um arquivo FBX.</div>
             </div>
 
-            <!-- Painel de Inserção de Keyframe -->
+            <!-- Painel de Inserção -->
             <div class="p-3 border-t border-slate-800 bg-slate-950/50 space-y-2">
                 <button id="addKeyframeBtn" disabled class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-600/20">
                     <i class="fa-solid fa-key"></i>
@@ -178,10 +203,6 @@
             </div>
 
             <div class="flex items-center space-x-4 text-xs font-mono">
-                <div class="flex items-center space-x-2">
-                    <span class="w-3 h-1.5 bg-blue-500 rounded-full inline-block"></span>
-                    <span class="text-slate-400 text-[11px]">Interpolação Ativa</span>
-                </div>
                 <span class="text-slate-400">Tempo: <strong id="current-time-text" class="text-amber-400">0.00s</strong> / 5.00s</span>
             </div>
         </div>
@@ -190,7 +211,7 @@
             <div id="flash-timeline-wrapper" class="relative min-w-full h-14 bg-slate-950 cursor-pointer">
                 <div id="flash-ruler" class="flash-ruler w-full"></div>
                 <div id="flash-track" class="flash-track-lane w-full flex items-center">
-                    <div id="keyframes-container" class="absolute inset-0 pointer-events-none"></div>
+                    <div id="keyframes-container" class="absolute inset-0"></div>
                 </div>
                 <div id="flash-playhead" class="flash-playhead" style="left: 0px;">
                     <div class="flash-playhead-head"></div>
@@ -211,7 +232,6 @@
         let currentTime = 0;
         let lastTime = performance.now();
 
-        // Pilhas do Histórico para Control+Z e Control+Y
         let undoStack = [];
         let redoStack = [];
         const MAX_HISTORY = 30;
@@ -219,12 +239,16 @@
         let initialBoneTransforms = new Map();
         let boneKeyframes = {};
 
-        const SAVE_PREFIX = 'FBX_RIG_EDITOR_PROJECT_V5_';
+        const SAVE_PREFIX = 'FBX_RIG_EDITOR_PROJECT_V6_';
         let currentProjectKey = null;
         let currentFileInfo = null;
 
+        let contextMenuTimeTarget = 0;
+        let contextMenuKeyframeTarget = null;
+
         const container = document.getElementById('canvas-container');
         const fileInput = document.getElementById('fileInput');
+        const importAnimInput = document.getElementById('importAnimInput');
         const loadingOverlay = document.getElementById('loading-overlay');
         const emptyState = document.getElementById('empty-state');
         const transformToolbar = document.getElementById('transform-toolbar');
@@ -257,6 +281,11 @@
         const flashPlayhead = document.getElementById('flash-playhead');
         const keyframesContainer = document.getElementById('keyframes-container');
         const flashRuler = document.getElementById('flash-ruler');
+
+        const timelineContextMenu = document.getElementById('timeline-context-menu');
+        const ctxAddKeyframe = document.getElementById('ctx-add-keyframe');
+        const ctxDeleteKeyframe = document.getElementById('ctx-delete-keyframe');
+        const ctxClearAll = document.getElementById('ctx-clear-all');
 
         let isDraggingTimeline = false;
 
@@ -354,11 +383,7 @@
                 const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
                 
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-                    if (e.shiftKey) {
-                        redo();
-                    } else {
-                        undo();
-                    }
+                    if (e.shiftKey) redo(); else undo();
                     e.preventDefault();
                     return;
                 }
@@ -390,12 +415,13 @@
                 }
             });
 
-            saveProjectBtn.addEventListener('click', () => {
-                saveProjectState(true);
-            });
-
-            fileInput.addEventListener('change', (e) => {
-                if (e.target.files.length) loadFBXFile(e.target.files[0]);
+            saveProjectBtn.addEventListener('click', () => saveProjectState(true));
+            fileInput.addEventListener('change', (e) => { if (e.target.files.length) loadFBXFile(e.target.files[0]); });
+            
+            // Listener para importar keyframes
+            importAnimInput.addEventListener('change', (e) => {
+                if (e.target.files.length) importKeyframesJSON(e.target.files[0]);
+                e.target.value = ''; // reseta
             });
 
             playBtn.addEventListener('click', () => {
@@ -411,10 +437,67 @@
                 applyPoseAtTime(currentTime);
             });
 
+            // Eventos da Timeline & Menu de Contexto
             flashTimelineWrapper.addEventListener('mousedown', (e) => {
-                isDraggingTimeline = true;
-                seekTimeline(e);
+                if (e.button === 0) { // Clique Esquerdo
+                    hideContextMenu();
+                    isDraggingTimeline = true;
+                    seekTimeline(e);
+                }
             });
+
+            flashTimelineWrapper.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                if (!selectedBone) return;
+
+                const rect = flashTimelineWrapper.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                contextMenuTimeTarget = parseFloat(((clickX / rect.width) * DURATION).toFixed(2));
+
+                const kfs = boneKeyframes[selectedBone.name] || [];
+                contextMenuKeyframeTarget = kfs.find(k => Math.abs(k.time - contextMenuTimeTarget) < 0.1) || null;
+
+                if (contextMenuKeyframeTarget) {
+                    ctxDeleteKeyframe.classList.remove('hidden');
+                } else {
+                    ctxDeleteKeyframe.classList.add('hidden');
+                }
+
+                timelineContextMenu.style.left = `${e.clientX}px`;
+                timelineContextMenu.style.top = `${e.clientY - 80}px`;
+                timelineContextMenu.classList.remove('hidden');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!timelineContextMenu.contains(e.target)) hideContextMenu();
+            });
+
+            ctxAddKeyframe.addEventListener('click', () => {
+                currentTime = contextMenuTimeTarget;
+                updateTimelineUI();
+                applyPoseAtTime(currentTime);
+                insertKeyframe();
+                hideContextMenu();
+            });
+
+            ctxDeleteKeyframe.addEventListener('click', () => {
+                if (contextMenuKeyframeTarget && selectedBone) {
+                    deleteKeyframeAtTime(selectedBone.name, contextMenuKeyframeTarget.time);
+                }
+                hideContextMenu();
+            });
+
+            ctxClearAll.addEventListener('click', () => {
+                if (selectedBone) {
+                    pushHistoryState();
+                    boneKeyframes[selectedBone.name] = [];
+                    renderTimelineKeyframes();
+                    applyPoseAtTime(currentTime);
+                    saveProjectState();
+                }
+                hideContextMenu();
+            });
+
             window.addEventListener('mousemove', (e) => { if (isDraggingTimeline) seekTimeline(e); });
             window.addEventListener('mouseup', () => isDraggingTimeline = false);
 
@@ -422,6 +505,10 @@
             exportAnimBtn.addEventListener('click', exportKeyframesJSON);
 
             renderer.domElement.addEventListener('pointerdown', onPointerDownSelectBone);
+        }
+
+        function hideContextMenu() {
+            timelineContextMenu.classList.add('hidden');
         }
 
         function setTransformMode(mode) {
@@ -533,12 +620,7 @@
             const geom = new THREE.SphereGeometry(radius, 10, 10);
 
             bonesList.forEach(bone => {
-                const mat = new THREE.MeshBasicMaterial({
-                    transparent: true,
-                    opacity: 0,
-                    depthWrite: false,
-                    depthTest: false
-                });
+                const mat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, depthTest: false });
                 const hitbox = new THREE.Mesh(geom, mat);
                 hitbox.name = '__bone_picker__' + bone.name;
                 hitbox.userData.boneRef = bone;
@@ -587,36 +669,6 @@
                 if (bone) {
                     selectBone(bone);
                     return;
-                }
-            }
-
-            const meshHits = raycaster.intersectObject(currentModel, true);
-            if (meshHits.length > 0) {
-                const hit = meshHits[0];
-                const mesh = hit.object;
-                if (mesh.isSkinnedMesh && mesh.skeleton && hit.face) {
-                    const skinIndex = mesh.geometry.attributes.skinIndex;
-                    const skinWeight = mesh.geometry.attributes.skinWeight;
-                    if (skinIndex && skinWeight) {
-                        let bestBoneIndex = -1;
-                        let bestWeight = -1;
-                        const vertices = [hit.face.a, hit.face.b, hit.face.c];
-
-                        vertices.forEach(vIdx => {
-                            for (let slot = 0; slot < 4; slot++) {
-                                const w = skinWeight.getComponent(vIdx, slot);
-                                const bIdx = skinIndex.getComponent(vIdx, slot);
-                                if (w > bestWeight) {
-                                    bestWeight = w;
-                                    bestBoneIndex = bIdx;
-                                }
-                            }
-                        });
-
-                        if (bestBoneIndex >= 0 && mesh.skeleton.bones[bestBoneIndex]) {
-                            selectBone(mesh.skeleton.bones[bestBoneIndex]);
-                        }
-                    }
                 }
             }
         }
@@ -721,7 +773,6 @@
 
             if (!boneKeyframes[name]) boneKeyframes[name] = [];
             
-            // Remove se já existir no mesmo timestamp
             boneKeyframes[name] = boneKeyframes[name].filter(k => Math.abs(k.time - time) > 0.01);
             boneKeyframes[name].push(frameData);
             boneKeyframes[name].sort((a, b) => a.time - b.time);
@@ -733,15 +784,21 @@
             setTimeout(() => addKeyframeBtn.classList.remove('bg-emerald-600'), 400);
         }
 
+        function deleteKeyframeAtTime(boneName, time) {
+            if (!boneKeyframes[boneName]) return;
+            pushHistoryState();
+            boneKeyframes[boneName] = boneKeyframes[boneName].filter(k => Math.abs(k.time - time) > 0.01);
+            renderTimelineKeyframes();
+            applyPoseAtTime(currentTime);
+            saveProjectState();
+        }
+
         function renderTimelineKeyframes() {
             keyframesContainer.innerHTML = '';
-
-            // Apenas renderiza a timeline do osso SELECIONADO
             if (!selectedBone) return;
 
             const kfs = boneKeyframes[selectedBone.name] || [];
 
-            // Desenha barras de interpolação entre keyframes do osso atual
             for (let i = 0; i < kfs.length - 1; i++) {
                 const k1 = kfs[i];
                 const k2 = kfs[i + 1];
@@ -759,13 +816,20 @@
                 keyframesContainer.appendChild(interpBar);
             }
 
-            // Desenha os pontos de Keyframe do osso atual
             kfs.forEach(kf => {
                 const pct = (kf.time / DURATION) * 100;
                 const dot = document.createElement('div');
                 dot.className = 'flash-keyframe';
                 dot.style.left = `${pct}%`;
-                dot.title = `Keyframe no tempo ${kf.time}s`;
+                dot.title = `Keyframe: ${kf.time}s (Clique direito para opções)`;
+                
+                dot.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    currentTime = kf.time;
+                    updateTimelineUI();
+                    applyPoseAtTime(currentTime);
+                });
+
                 keyframesContainer.appendChild(dot);
             });
         }
@@ -804,14 +868,12 @@
             currentTimeText.textContent = currentTime.toFixed(2) + 's';
         }
 
-        // Lógica de Interpolação por Osso
         function applyPoseAtTime(time) {
             if (!currentModel) return;
 
             bonesList.forEach(bone => {
                 const kfs = boneKeyframes[bone.name];
                 
-                // 1. Se o osso não tem keyframes, mantém a pose inicial de descanso do FBX
                 if (!kfs || kfs.length === 0) {
                     const init = initialBoneTransforms.get(bone.uuid);
                     if (init) {
@@ -822,7 +884,6 @@
                     return;
                 }
 
-                // 2. Tempo antes do primeiro keyframe
                 if (time <= kfs[0].time) {
                     const k = kfs[0];
                     bone.position.copy(k.position);
@@ -831,7 +892,6 @@
                     return;
                 }
 
-                // 3. Tempo depois do último keyframe
                 const last = kfs[kfs.length - 1];
                 if (time >= last.time) {
                     bone.position.copy(last.position);
@@ -840,7 +900,6 @@
                     return;
                 }
 
-                // 4. Interpolação do tempo t no intervalo k1 <= t <= k2
                 for (let i = 0; i < kfs.length - 1; i++) {
                     const k1 = kfs[i];
                     const k2 = kfs[i + 1];
@@ -884,7 +943,7 @@
             });
 
             return {
-                version: 5,
+                version: 6,
                 file: currentFileInfo,
                 currentTime,
                 selectedBone: selectedBone ? selectedBone.name : null,
@@ -954,7 +1013,7 @@
                     }, 900);
                 }
             } catch (err) {
-                console.warn('Não foi possível salvar o projeto localmente:', err);
+                console.warn('Não foi possível salvar:', err);
             }
         }
 
@@ -979,6 +1038,44 @@
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
+        }
+
+        // Função de Importação de Keyframes JSON
+        function importKeyframesJSON(file) {
+            if (!currentModel) {
+                alert("Por favor, carregue um modelo FBX primeiro antes de importar keyframes.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    pushHistoryState();
+
+                    const byName = new Map(bonesList.map(b => [b.name, b]));
+                    
+                    Object.entries(importedData).forEach(([boneName, kfs]) => {
+                        if (byName.has(boneName) && Array.isArray(kfs)) {
+                            boneKeyframes[boneName] = kfs.map(k => ({
+                                time: Number(k.time) || 0,
+                                position: new THREE.Vector3().fromArray(k.position || [0, 0, 0]),
+                                quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0, 0, 0, 1]),
+                                scale: new THREE.Vector3().fromArray(k.scale || [1, 1, 1])
+                            })).sort((a, b) => a.time - b.time);
+                        }
+                    });
+
+                    renderTimelineKeyframes();
+                    applyPoseAtTime(currentTime);
+                    saveProjectState();
+                    alert("Keyframes importados com sucesso!");
+                } catch (err) {
+                    alert("Erro ao ler ou processar o arquivo de keyframes JSON.");
+                    console.error(err);
+                }
+            };
+            reader.readAsText(file);
         }
 
         function onWindowResize() {
