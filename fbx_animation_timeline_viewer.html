@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FBX Rigging & Keyframe Animator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darker: '#090d16',
+                        card: '#131b2e',
+                        accent: '#3b82f6'
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Three.js e Dependências -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fflate@0.7.4/umd/index.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        
+        .flash-timeline-container { background-color: #0f172a; border-top: 1px solid #334155; user-select: none; }
+        .flash-ruler { background: linear-gradient(to bottom, #1e293b, #0f172a); border-bottom: 1px solid #475569; height: 24px; position: relative; cursor: pointer; }
+        .flash-frame-tick { position: absolute; bottom: 0; border-left: 1px solid #64748b; height: 6px; }
+        .flash-frame-tick.major { height: 12px; border-left-color: #94a3b8; }
+        .flash-frame-number { position: absolute; top: 2px; font-size: 9px; font-family: monospace; color: #94a3b8; transform: translateX(-50%); }
+        .flash-track-lane { height: 32px; background-color: #1e293b; position: relative; border-bottom: 1px solid #0f172a; }
+        .flash-keyframe { position: absolute; top: 50%; width: 10px; height: 10px; background-color: #f59e0b; border: 1px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 5; cursor: pointer; }
+        .flash-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }
+        .flash-playhead-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background-color: #ef4444; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-lg z-20">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-bone text-lg"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Bone Rigging & Keyframe Editor</h1>
+                <p class="text-xs text-slate-400">Editor Manual de Pose e Animação de Ossos</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+            <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-xs shadow-lg shadow-blue-600/20 flex items-center space-x-2">
+                <i class="fa-solid fa-folder-open"></i>
+                <span>Carregar FBX</span>
+                <input type="file" id="fileInput" accept=".fbx" class="hidden">
+            </label>
+
+            <button id="exportAnimBtn" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-download"></i>
+                <span>Exportar Keyframes</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden relative">
+
+        <!-- Viewport 3D -->
+        <div id="canvas-container" class="flex-1 h-full relative bg-slate-950">
+            <div id="loading-overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-40 flex flex-col items-center justify-center transition-opacity hidden">
+                <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <p id="loading-text" class="text-slate-200 text-xs">Carregando Modelo FBX...</p>
+            </div>
+
+            <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center pointer-events-none z-10">
+                <i class="fa-solid fa-file-arrow-up text-5xl text-slate-700 mb-3"></i>
+                <h3 class="text-base font-bold text-slate-300">Nenhum Modelo FBX Carregado</h3>
+                <p class="text-xs text-slate-500 max-w-sm mt-1">Carregue um arquivo .FBX para manipular os ossos e criar animações.</p>
+            </div>
+
+            <!-- Toolbar de Modos de Transformação -->
+            <div id="transform-toolbar" class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-1.5 rounded-2xl shadow-xl flex items-center space-x-1 z-10 hidden">
+                <button id="btn-translate" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5" title="Transladar (W)">
+                    <i class="fa-solid fa-arrows-up-down-left-right"></i>
+                    <span>Mover</span>
+                </button>
+                <button id="btn-rotate" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5" title="Rotacionar (E)">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span>Rotacionar</span>
+                </button>
+                <button id="btn-scale" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5" title="Redimensionar (R)">
+                    <i class="fa-solid fa-maximize"></i>
+                    <span>Escala</span>
+                </button>
+            </div>
+
+            <!-- Painel Numérico do Osso -->
+            <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-2xl shadow-xl text-xs z-10 hidden w-72">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate">
+                        <i class="fa-solid fa-bone text-indigo-400"></i>
+                        <span id="selected-bone-name" class="text-blue-400 truncate">Osso</span>
+                    </div>
+                    <button id="deselectBoneBtn" class="text-slate-500 hover:text-slate-300 text-xs"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                
+                <div class="space-y-1.5 font-mono text-[11px]">
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 w-12">Pos X/Y/Z</span>
+                        <div class="grid grid-cols-3 gap-1 flex-1">
+                            <input type="number" id="posX" step="0.1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                            <input type="number" id="posY" step="0.1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                            <input type="number" id="posZ" step="0.1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-slate-400 w-12">Rot X/Y/Z</span>
+                        <div class="grid grid-cols-3 gap-1 flex-1">
+                            <input type="number" id="rotX" step="1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                            <input type="number" id="rotY" step="1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                            <input type="number" id="rotZ" step="1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar Direita -->
+        <aside class="w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-20">
+            <div class="p-3 border-b border-slate-800 font-semibold text-xs text-slate-300 flex items-center justify-between">
+                <span>Esqueleto de Ossos (Bones)</span>
+                <span id="bone-count" class="text-[10px] text-slate-500">0 ossos</span>
+            </div>
+
+            <!-- Lista de Ossos -->
+            <div id="bones-list-container" class="flex-1 overflow-y-auto p-2 space-y-1">
+                <div class="text-center py-12 text-slate-500 text-xs">Carregue um arquivo FBX.</div>
+            </div>
+
+            <!-- Painel de Inserção de Keyframe -->
+            <div class="p-3 border-t border-slate-800 bg-slate-950/50 space-y-2">
+                <button id="addKeyframeBtn" disabled class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-600/20">
+                    <i class="fa-solid fa-key"></i>
+                    <span>Inserir Keyframe no Osso</span>
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Timeline Estilo Adobe Flash -->
+    <footer class="flash-timeline-container flex flex-col shrink-0 z-30">
+        <div class="px-6 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+            <div class="flex items-center space-x-2">
+                <button id="playBtn" class="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition">
+                    <i id="playIcon" class="fa-solid fa-play text-xs"></i>
+                </button>
+                <button id="stopBtn" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
+                    <i class="fa-solid fa-stop text-xs"></i>
+                </button>
+            </div>
+
+            <div class="flex items-center space-x-3 font-mono text-xs">
+                <span class="text-slate-400">Tempo: <strong id="current-time-text" class="text-amber-400">0.00s</strong> / 5.00s</span>
+            </div>
+        </div>
+
+        <div class="relative overflow-x-auto select-none" id="flash-timeline-scroll">
+            <div id="flash-timeline-wrapper" class="relative min-w-full h-14 bg-slate-950 cursor-pointer">
+                <div id="flash-ruler" class="flash-ruler w-full"></div>
+                <div id="flash-track" class="flash-track-lane w-full flex items-center">
+                    <div id="keyframes-container" class="absolute inset-0 pointer-events-none"></div>
+                </div>
+                <div id="flash-playhead" class="flash-playhead" style="left: 0px;">
+                    <div class="flash-playhead-head"></div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const DURATION = 5.0; // Duração total da timeline em segundos
+        let scene, camera, renderer, controls, transformControls, skeletonHelper;
+        let currentModel = null;
+        let bonesList = [];
+        let selectedBone = null;
+        let isPlaying = false;
+        let currentTime = 0;
+        let lastTime = performance.now();
+
+        // Estrutura do Gravador de Keyframes:
+        // { [boneName]: Array de objetos { time, position: [], quaternion: [], scale: [] } }
+        let boneKeyframes = {};
+
+        const container = document.getElementById('canvas-container');
+        const fileInput = document.getElementById('fileInput');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const emptyState = document.getElementById('empty-state');
+        const transformToolbar = document.getElementById('transform-toolbar');
+        const selectedBoneCard = document.getElementById('selected-bone-card');
+        const selectedBoneName = document.getElementById('selected-bone-name');
+        const deselectBoneBtn = document.getElementById('deselectBoneBtn');
+        const bonesListContainer = document.getElementById('bones-list-container');
+        const boneCountEl = document.getElementById('bone-count');
+        const addKeyframeBtn = document.getElementById('addKeyframeBtn');
+        const exportAnimBtn = document.getElementById('exportAnimBtn');
+
+        const btnTranslate = document.getElementById('btn-translate');
+        const btnRotate = document.getElementById('btn-rotate');
+        const btnScale = document.getElementById('btn-scale');
+
+        const posX = document.getElementById('posX');
+        const posY = document.getElementById('posY');
+        const posZ = document.getElementById('posZ');
+        const rotX = document.getElementById('rotX');
+        const rotY = document.getElementById('rotY Rad');
+        const rotZ = document.getElementById('rotZ');
+
+        const playBtn = document.getElementById('playBtn');
+        const playIcon = document.getElementById('playIcon');
+        const stopBtn = document.getElementById('stopBtn');
+        const currentTimeText = document.getElementById('current-time-text');
+        const flashTimelineWrapper = document.getElementById('flash-timeline-wrapper');
+        const flashPlayhead = document.getElementById('flash-playhead');
+        const keyframesContainer = document.getElementById('keyframes-container');
+        const flashRuler = document.getElementById('flash-ruler');
+
+        let isDraggingTimeline = false;
+
+        function initScene() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x070b14);
+
+            camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 5000);
+            camera.position.set(100, 150, 300);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.target.set(0, 50, 0);
+
+            // Gizmo de Transformação
+            transformControls = new THREE.TransformControls(camera, renderer.domElement);
+            transformControls.size = 0.85;
+            transformControls.setMode('rotate');
+            scene.add(transformControls);
+
+            transformControls.addEventListener('dragging-changed', (e) => {
+                controls.enabled = !e.value;
+            });
+
+            transformControls.addEventListener('change', () => {
+                if (selectedBone) {
+                    updateInputsFromBone();
+                    if (skeletonHelper) skeletonHelper.update();
+                }
+            });
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2.0);
+            dirLight.position.set(200, 400, 200);
+            scene.add(dirLight);
+
+            const grid = new THREE.GridHelper(1000, 40, 0x3b82f6, 0x1e293b);
+            scene.add(grid);
+
+            setupEventListeners();
+            buildRuler();
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function setupEventListeners() {
+            btnTranslate.addEventListener('click', () => setTransformMode('translate'));
+            btnRotate.addEventListener('click', () => setTransformMode('rotate'));
+            btnScale.addEventListener('click', () => setTransformMode('scale'));
+
+            deselectBoneBtn.addEventListener('click', () => selectBone(null));
+
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                if (e.key === 'w' || e.key === 'W') setTransformMode('translate');
+                if (e.key === 'e' || e.key === 'E') setTransformMode('rotate');
+                if (e.key === 'r' || e.key === 'R') setTransformMode('scale');
+            });
+
+            [posX, posY, posZ, rotX, document.getElementById('rotY'), rotZ].forEach(input => {
+                if (input) input.addEventListener('input', updateBoneFromInputs);
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                if (e.target.files.length) loadFBXFile(e.target.files[0]);
+            });
+
+            playBtn.addEventListener('click', () => {
+                isPlaying = !isPlaying;
+                playIcon.className = isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play";
+            });
+
+            stopBtn.addEventListener('click', () => {
+                isPlaying = false;
+                playIcon.className = "fa-solid fa-play";
+                currentTime = 0;
+                updateTimelineUI();
+                applyPoseAtTime(currentTime);
+            });
+
+            flashTimelineWrapper.addEventListener('mousedown', (e) => {
+                isDraggingTimeline = true;
+                seekTimeline(e);
+            });
+            window.addEventListener('mousemove', (e) => { if (isDraggingTimeline) seekTimeline(e); });
+            window.addEventListener('mouseup', () => isDraggingTimeline = false);
+
+            addKeyframeBtn.addEventListener('click', insertKeyframe);
+            exportAnimBtn.addEventListener('click', exportKeyframesJSON);
+        }
+
+        function setTransformMode(mode) {
+            transformControls.setMode(mode);
+            btnTranslate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
+            btnRotate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
+            btnScale.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
+
+            if (mode === 'translate') btnTranslate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
+            if (mode === 'rotate') btnRotate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
+            if (mode === 'scale') btnScale.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
+        }
+
+        function loadFBXFile(file) {
+            loadingOverlay.classList.remove('hidden');
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loader = new THREE.FBXLoader();
+                    const object = loader.parse(e.target.result, '');
+                    setupFBXModel(object);
+                } catch(err) {
+                    alert("Erro ao carregar o arquivo FBX.");
+                    console.error(err);
+                } finally {
+                    loadingOverlay.classList.add('hidden');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function setupFBXModel(object) {
+            if (currentModel) scene.remove(currentModel);
+            if (skeletonHelper) scene.remove(skeletonHelper);
+
+            selectBone(null);
+            bonesList = [];
+            boneKeyframes = {};
+
+            currentModel = object;
+
+            currentModel.traverse((child) => {
+                if (child.isBone) {
+                    bonesList.push(child);
+                    boneKeyframes[child.name] = [];
+                }
+            });
+
+            skeletonHelper = new THREE.SkeletonHelper(currentModel);
+            scene.add(skeletonHelper);
+            scene.add(currentModel);
+
+            // Ajusta o enquadramento do modelo
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+                const scale = 150 / maxDim;
+                currentModel.scale.set(scale, scale, scale);
+            }
+
+            emptyState.classList.add('hidden');
+            renderBonesList();
+            renderTimelineKeyframes();
+        }
+
+        function renderBonesList() {
+            bonesListContainer.innerHTML = '';
+            boneCountEl.textContent = `${bonesList.length} ossos`;
+
+            bonesList.forEach(bone => {
+                const btn = document.createElement('button');
+                btn.id = `bone-item-${bone.name}`;
+                btn.className = "w-full text-left px-3 py-2 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between";
+                btn.innerHTML = `<span><i class="fa-solid fa-bone text-indigo-400 mr-2"></i>${bone.name}</span>`;
+                btn.addEventListener('click', () => selectBone(bone));
+                bonesListContainer.appendChild(btn);
+            });
+        }
+
+        function selectBone(bone) {
+            selectedBone = bone;
+            document.querySelectorAll('[id^="bone-item-"]').forEach(el => el.classList.remove('bg-blue-600/30', 'text-blue-300'));
+
+            if (selectedBone) {
+                transformControls.attach(selectedBone);
+                selectedBoneName.textContent = bone.name;
+                selectedBoneCard.classList.remove('hidden');
+                transformToolbar.classList.remove('hidden');
+                addKeyframeBtn.disabled = false;
+
+                const activeBtn = document.getElementById(`bone-item-${bone.name}`);
+                if (activeBtn) activeBtn.classList.add('bg-blue-600/30', 'text-blue-300');
+
+                updateInputsFromBone();
+            } else {
+                transformControls.detach();
+                selectedBoneCard.classList.add('hidden');
+                transformToolbar.classList.add('hidden');
+                addKeyframeBtn.disabled = true;
+            }
+        }
+
+        function updateInputsFromBone() {
+            if (!selectedBone) return;
+            posX.value = selectedBone.position.x.toFixed(2);
+            posY.value = selectedBone.position.y.toFixed(2);
+            posZ.value = selectedBone.position.z.toFixed(2);
+
+            const rotYEl = document.getElementById('rotY');
+            rotX.value = THREE.MathUtils.radToDeg(selectedBone.rotation.x).toFixed(0);
+            if (rotYEl) rotYEl.value = THREE.MathUtils.radToDeg(selectedBone.rotation.y).toFixed(0);
+            rotZ.value = THREE.MathUtils.radToDeg(selectedBone.rotation.z).toFixed(0);
+        }
+
+        function updateBoneFromInputs() {
+            if (!selectedBone) return;
+            const rotYEl = document.getElementById('rotY');
+            selectedBone.position.set(parseFloat(posX.value) || 0, parseFloat(posY.value) || 0, parseFloat(posZ.value) || 0);
+            selectedBone.rotation.set(
+                THREE.MathUtils.degToRad(parseFloat(rotX.value) || 0),
+                THREE.MathUtils.degToRad(parseFloat(rotYEl ? rotYEl.value : 0) || 0),
+                THREE.MathUtils.degToRad(parseFloat(rotZ.value) || 0)
+            );
+            if (skeletonHelper) skeletonHelper.update();
+        }
+
+        function insertKeyframe() {
+            if (!selectedBone) return;
+
+            const time = parseFloat(currentTime.toFixed(2));
+            const name = selectedBone.name;
+
+            const frameData = {
+                time: time,
+                position: selectedBone.position.clone(),
+                quaternion: selectedBone.quaternion.clone(),
+                scale: selectedBone.scale.clone()
+            };
+
+            // Remove o keyframe pré-existente no mesmo timestamp se existir
+            boneKeyframes[name] = boneKeyframes[name].filter(k => Math.abs(k.time - time) > 0.01);
+            boneKeyframes[name].push(frameData);
+            boneKeyframes[name].sort((a, b) => a.time - b.time);
+
+            renderTimelineKeyframes();
+
+            addKeyframeBtn.classList.add('bg-emerald-600');
+            setTimeout(() => addKeyframeBtn.classList.remove('bg-emerald-600'), 400);
+        }
+
+        function renderTimelineKeyframes() {
+            keyframesContainer.innerHTML = '';
+            Object.keys(boneKeyframes).forEach(bName => {
+                boneKeyframes[bName].forEach(kf => {
+                    const pct = (kf.time / DURATION) * 100;
+                    const dot = document.createElement('div');
+                    dot.className = 'flash-keyframe';
+                    dot.style.left = `${pct}%`;
+                    dot.title = `Keyframe: ${bName} (${kf.time}s)`;
+                    keyframesContainer.appendChild(dot);
+                });
+            });
+        }
+
+        function buildRuler() {
+            flashRuler.innerHTML = '';
+            for (let t = 0; t <= DURATION; t += 0.5) {
+                const pct = (t / DURATION) * 100;
+                const tick = document.createElement('div');
+                tick.className = 'flash-frame-tick major';
+                tick.style.left = `${pct}%`;
+
+                const num = document.createElement('div');
+                num.className = 'flash-frame-number';
+                num.style.left = `${pct}%`;
+                num.textContent = t.toFixed(1) + 's';
+
+                flashRuler.appendChild(tick);
+                flashRuler.appendChild(num);
+            }
+        }
+
+        function seekTimeline(e) {
+            const rect = flashTimelineWrapper.getBoundingClientRect();
+            let x = e.clientX - rect.left;
+            x = Math.max(0, Math.min(x, rect.width));
+            
+            currentTime = (x / rect.width) * DURATION;
+            updateTimelineUI();
+            applyPoseAtTime(currentTime);
+        }
+
+        function updateTimelineUI() {
+            const pct = (currentTime / DURATION) * 100;
+            flashPlayhead.style.left = `${pct}%`;
+            currentTimeText.textContent = currentTime.toFixed(2) + 's';
+        }
+
+        function applyPoseAtTime(time) {
+            if (!currentModel) return;
+
+            bonesList.forEach(bone => {
+                const kfs = boneKeyframes[bone.name];
+                if (!kfs || kfs.length === 0) return;
+
+                if (time <= kfs[0].time) {
+                    bone.position.copy(kfs[0].position);
+                    bone.quaternion.copy(kfs[0].quaternion);
+                    bone.scale.copy(kfs[0].scale);
+                } else if (time >= kfs[kfs.length - 1].time) {
+                    const last = kfs[kfs.length - 1];
+                    bone.position.copy(last.position);
+                    bone.quaternion.copy(last.quaternion);
+                    bone.scale.copy(last.scale);
+                } else {
+                    // Interpolação Linear de Translação e Slerp de Rotação Quaterniana
+                    for (let i = 0; i < kfs.length - 1; i++) {
+                        if (time >= kfs[i].time && time <= kfs[i + 1].time) {
+                            const k1 = kfs[i];
+                            const k2 = kfs[i + 1];
+                            const alpha = (time - k1.time) / (k2.time - k1.time);
+
+                            bone.position.lerpVectors(k1.position, k2.position, alpha);
+                            bone.quaternion.slerpQuaternions(k1.quaternion, k2.quaternion, alpha);
+                            bone.scale.lerpVectors(k1.scale, k2.scale, alpha);
+                            break;
+                        }
+                    }
+                }
+            });
+
+            if (skeletonHelper) skeletonHelper.update();
+            if (selectedBone) updateInputsFromBone();
+        }
+
+        function exportKeyframesJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boneKeyframes, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `rig_keyframes.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function onWindowResize() {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate(now) {
+            requestAnimationFrame(animate);
+            const delta = (now - lastTime) / 1000;
+            lastTime = now;
+
+            if (isPlaying) {
+                currentTime += delta;
+                if (currentTime >= DURATION) currentTime = 0;
+                updateTimelineUI();
+                applyPoseAtTime(currentTime);
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => {
+            initScene();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
