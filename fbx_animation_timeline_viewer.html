@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Rigging & Keyframe Interpolation Editor</title>
+    <title>FBX Animation Studio - Sync & Independent Keyframe Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -33,26 +33,33 @@
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
         
-        .flash-timeline-container { background-color: #0f172a; border-top: 1px solid #334155; user-select: none; }
-        .flash-ruler { background: linear-gradient(to bottom, #1e293b, #0f172a); border-bottom: 1px solid #475569; height: 24px; position: relative; cursor: pointer; }
-        .flash-frame-tick { position: absolute; bottom: 0; border-left: 1px solid #64748b; height: 6px; }
-        .flash-frame-tick.major { height: 12px; border-left-color: #94a3b8; }
-        .flash-frame-number { position: absolute; top: 2px; font-size: 9px; font-family: monospace; color: #94a3b8; transform: translateX(-50%); }
-        .flash-track-lane { height: 36px; background-color: #1e293b; position: relative; border-bottom: 1px solid #0f172a; }
-        .flash-keyframe { position: absolute; top: 50%; width: 12px; height: 12px; background-color: #f59e0b; border: 1.5px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 10; cursor: pointer; transition: transform 0.1s; }
+        .timeline-container { background-color: #0f172a; border-top: 1px solid #334155; user-select: none; }
+        .timeline-ruler { background: linear-gradient(to bottom, #1e293b, #0f172a); border-bottom: 1px solid #475569; height: 26px; position: relative; cursor: pointer; }
+        .timeline-frame-tick { position: absolute; bottom: 0; border-left: 1px solid #64748b; height: 6px; }
+        .timeline-frame-tick.major { height: 12px; border-left-color: #94a3b8; }
+        .timeline-frame-number { position: absolute; top: 2px; font-size: 9px; font-family: monospace; color: #94a3b8; transform: translateX(-50%); }
+        
+        .track-lane { height: 32px; background-color: #1a2234; position: relative; border-bottom: 1px solid #0f172a; }
+        .track-lane:nth-child(even) { background-color: #131b2e; }
+        .track-lane.selected { background-color: #1e293b; border-left: 3px solid #3b82f6; }
+        
+        .flash-keyframe { position: absolute; top: 50%; width: 12px; height: 12px; background-color: #f59e0b; border: 1.5px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 10; cursor: grab; transition: transform 0.1s, background-color 0.1s; }
         .flash-keyframe:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); background-color: #fbbf24; }
-        .flash-interpolation-bar { position: absolute; top: 50%; height: 6px; background: linear-gradient(90deg, #3b82f6, #6366f1); transform: translateY(-50%); z-index: 5; border-radius: 3px; opacity: 0.85; border: 1px solid #1d4ed8; }
-        .flash-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }
-        .flash-playhead-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background-color: #ef4444; clip-path: polygon(0 0, 100% 0, 50% 100%); }
+        .flash-keyframe:active { cursor: grabbing; background-color: #ef4444; border-color: #991b1b; }
+        
+        .flash-interpolation-bar { position: absolute; top: 50%; height: 4px; background: linear-gradient(90deg, #3b82f6, #6366f1); transform: translateY(-50%); z-index: 5; border-radius: 2px; opacity: 0.8; border: 1px solid #1d4ed8; }
+        
+        .timeline-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 30; pointer-events: none; }
+        .timeline-playhead-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background-color: #ef4444; clip-path: polygon(0 0, 100% 0, 50% 100%); }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- Context Menu Customizado da Timeline -->
-    <div id="timeline-context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 w-48 text-xs font-medium text-slate-200 backdrop-blur-md">
+    <!-- Context Menu Customizado -->
+    <div id="timeline-context-menu" class="hidden fixed z-50 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-1 w-52 text-xs font-medium text-slate-200 backdrop-blur-md">
         <button id="ctx-add-keyframe" class="w-full text-left px-3 py-2 hover:bg-blue-600 hover:text-white flex items-center space-x-2 transition">
             <i class="fa-solid fa-key text-amber-400 w-4"></i>
-            <span>Inserir Keyframe</span>
+            <span>Forçar Keyframe Aqui</span>
         </button>
         <button id="ctx-delete-keyframe" class="w-full text-left px-3 py-2 hover:bg-red-600 hover:text-white flex items-center space-x-2 transition">
             <i class="fa-solid fa-trash-can text-red-400 w-4"></i>
@@ -61,43 +68,49 @@
         <div class="border-t border-slate-800 my-1"></div>
         <button id="ctx-clear-all" class="w-full text-left px-3 py-2 hover:bg-red-700 hover:text-white flex items-center space-x-2 transition text-red-400">
             <i class="fa-solid fa-broom w-4"></i>
-            <span>Limpar Timeline do Osso</span>
+            <span>Limpar Linha do Osso</span>
         </button>
     </div>
 
     <!-- Header -->
-    <header class="bg-slate-900 border-b border-slate-800 px-6 py-3 flex items-center justify-between shrink-0 shadow-lg z-20">
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-2.5 flex items-center justify-between shrink-0 shadow-lg z-20">
         <div class="flex items-center space-x-3">
-            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-blue-500/30">
-                <i class="fa-solid fa-bone text-lg"></i>
+            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 p-2 rounded-xl text-white shadow-lg shadow-blue-500/30">
+                <i class="fa-solid fa-bone text-base"></i>
             </div>
             <div>
-                <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Rigging & Keyframe Animator</h1>
-                <p class="text-xs text-slate-400">Edição de Ossos na Lista, Importação/Exportação e Menu de Contexto</p>
+                <h1 class="font-bold text-sm tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Animator Pro</h1>
+                <p class="text-[10px] text-slate-400">Keyframes independentes e sincronização de alterações</p>
             </div>
         </div>
 
         <div class="flex items-center space-x-2">
-            <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2 rounded-xl text-xs shadow-lg shadow-blue-600/20 flex items-center space-x-2">
+            <!-- Botão de Auto-Keyframe -->
+            <button id="autoKeyBtn" class="bg-slate-800 border border-slate-700 text-slate-400 px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition">
+                <i class="fa-solid fa-record-vinyl"></i>
+                <span>Auto-Key: <strong id="autoKeyStatus" class="text-slate-500">OFF</strong></span>
+            </button>
+
+            <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white font-medium px-3 py-1.5 rounded-lg text-xs shadow-lg shadow-blue-600/20 flex items-center space-x-1.5">
                 <i class="fa-solid fa-folder-open"></i>
                 <span>Carregar FBX</span>
                 <input type="file" id="fileInput" accept=".fbx" class="hidden">
             </label>
 
-            <button id="saveProjectBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
+            <button id="saveProjectBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-floppy-disk"></i>
-                <span>Salvar alterações</span>
+                <span>Salvar Projeto</span>
             </button>
 
-            <label class="cursor-pointer bg-purple-600 hover:bg-purple-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
+            <label class="cursor-pointer bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-file-import"></i>
-                <span>Importar Keyframes</span>
+                <span>Importar JSON</span>
                 <input type="file" id="importAnimInput" accept=".json" class="hidden">
             </label>
 
-            <button id="exportAnimBtn" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
+            <button id="exportAnimBtn" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-download"></i>
-                <span>Exportar Keyframes</span>
+                <span>Exportar JSON</span>
             </button>
         </div>
     </header>
@@ -107,45 +120,42 @@
         <!-- Viewport 3D -->
         <div id="canvas-container" class="flex-1 h-full relative bg-slate-950">
             <div id="loading-overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md z-40 flex flex-col items-center justify-center transition-opacity hidden">
-                <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
                 <p id="loading-text" class="text-slate-200 text-xs">Carregando Modelo FBX...</p>
             </div>
 
             <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center pointer-events-none z-10">
-                <i class="fa-solid fa-file-arrow-up text-5xl text-slate-700 mb-3"></i>
-                <h3 class="text-base font-bold text-slate-300">Nenhum Modelo FBX Carregado</h3>
-                <p class="text-xs text-slate-500 max-w-sm mt-1">Carregue um arquivo .FBX para manipular os ossos, ver interpolações e editar.</p>
+                <i class="fa-solid fa-cube text-5xl text-slate-800 mb-3"></i>
+                <h3 class="text-sm font-bold text-slate-400">Nenhum Modelo FBX Carregado</h3>
+                <p class="text-xs text-slate-600 max-w-sm mt-1">Carregue um arquivo .FBX para iniciar a animação.</p>
             </div>
 
-            <!-- Toolbar de Modos de Transformação -->
-            <div id="transform-toolbar" class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-1.5 rounded-2xl shadow-xl flex items-center space-x-1 z-10 hidden">
-                <button id="btn-translate" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5" title="Transladar (W)">
-                    <i class="fa-solid fa-arrows-up-down-left-right"></i>
-                    <span>Mover</span>
+            <!-- Toolbar de Modos -->
+            <div id="transform-toolbar" class="absolute top-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-1.5 rounded-xl shadow-xl flex items-center space-x-1 z-10 hidden">
+                <button id="btn-translate" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition" title="Mover (W)">
+                    <i class="fa-solid fa-arrows-up-down-left-right mr-1"></i>Mover
                 </button>
-                <button id="btn-rotate" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5" title="Rotacionar (E)">
-                    <i class="fa-solid fa-rotate"></i>
-                    <span>Rotacionar</span>
+                <button id="btn-rotate" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white transition" title="Rotacionar (E)">
+                    <i class="fa-solid fa-rotate mr-1"></i>Rotacionar
                 </button>
-                <button id="btn-scale" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5" title="Redimensionar (R)">
-                    <i class="fa-solid fa-maximize"></i>
-                    <span>Escala</span>
+                <button id="btn-scale" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition" title="Escala (R)">
+                    <i class="fa-solid fa-maximize mr-1"></i>Escala
                 </button>
             </div>
 
             <!-- Painel do Osso Selecionado -->
-            <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-2xl shadow-xl text-xs z-10 hidden w-80">
+            <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-xl shadow-xl text-xs z-10 hidden w-72">
                 <div class="flex items-center justify-between mb-2">
                     <div class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate flex-1 mr-2">
                         <i class="fa-solid fa-bone text-indigo-400"></i>
-                        <input type="text" id="selected-bone-rename-input" class="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs text-blue-400 font-bold focus:outline-none focus:border-blue-500 w-full" title="Digite para renomear o osso">
+                        <input type="text" id="selected-bone-rename-input" class="bg-slate-950 border border-slate-700 rounded px-1.5 py-0.5 text-xs text-blue-400 font-bold focus:outline-none focus:border-blue-500 w-full">
                     </div>
                     <button id="deselectBoneBtn" class="text-slate-500 hover:text-slate-300 text-xs"><i class="fa-solid fa-xmark"></i></button>
                 </div>
                 
-                <div class="space-y-1.5 font-mono text-[11px]">
+                <div class="space-y-1 font-mono text-[11px]">
                     <div class="flex items-center justify-between">
-                        <span class="text-slate-400 w-12">Pos X/Y/Z</span>
+                        <span class="text-slate-400 w-10">Pos</span>
                         <div class="grid grid-cols-3 gap-1 flex-1">
                             <input type="number" id="posX" step="0.1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
                             <input type="number" id="posY" step="0.1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
@@ -153,7 +163,7 @@
                         </div>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-slate-400 w-12">Rot X/Y/Z</span>
+                        <span class="text-slate-400 w-10">Rot</span>
                         <div class="grid grid-cols-3 gap-1 flex-1">
                             <input type="number" id="rotX" step="1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
                             <input type="number" id="rotY" step="1" class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center text-slate-200">
@@ -165,38 +175,37 @@
         </div>
 
         <!-- Sidebar Direita -->
-        <aside class="w-80 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-20">
+        <aside class="w-72 bg-slate-900 border-l border-slate-800 flex flex-col shrink-0 z-20">
             <div class="p-3 border-b border-slate-800 font-semibold text-xs text-slate-300 flex items-center justify-between">
-                <span>Esqueleto de Ossos (Bones)</span>
+                <span>Esqueleto</span>
                 <span id="bone-count" class="text-[10px] text-slate-500">0 ossos</span>
             </div>
 
-            <!-- Lista de Ossos -->
             <div id="bones-list-container" class="flex-1 overflow-y-auto p-2 space-y-1">
-                <div class="text-center py-12 text-slate-500 text-xs">Carregue um arquivo FBX.</div>
+                <div class="text-center py-12 text-slate-500 text-xs">Carregue um FBX...</div>
             </div>
 
-            <!-- Painel de Inserção -->
             <div class="p-3 border-t border-slate-800 bg-slate-950/50 space-y-2">
-                <button id="addKeyframeBtn" disabled class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center space-x-2 shadow-lg shadow-amber-600/20">
+                <button id="addKeyframeBtn" disabled class="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-40 text-white font-bold py-2 rounded-lg text-xs transition flex items-center justify-center space-x-2">
                     <i class="fa-solid fa-key"></i>
-                    <span>Inserir Keyframe no Osso</span>
+                    <span>Inserir Keyframe</span>
                 </button>
             </div>
         </aside>
     </div>
 
-    <!-- Timeline -->
-    <footer class="flash-timeline-container flex flex-col shrink-0 z-30">
-        <div class="px-6 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
+    <!-- Timeline Completa Multi-Track -->
+    <footer class="timeline-container flex flex-col shrink-0 z-30 h-64 border-t border-slate-800">
+        <!-- Controles de Playback -->
+        <div class="px-4 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800 shrink-0">
             <div class="flex items-center space-x-2">
-                <button id="playBtn" class="w-8 h-8 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition">
+                <button id="playBtn" class="w-7 h-7 rounded-lg bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition">
                     <i id="playIcon" class="fa-solid fa-play text-xs"></i>
                 </button>
-                <button id="stopBtn" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
+                <button id="stopBtn" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
                     <i class="fa-solid fa-stop text-xs"></i>
                 </button>
-                <div id="active-bone-indicator" class="text-xs text-amber-400 font-medium ml-4 truncate max-w-xs">
+                <div id="active-bone-indicator" class="text-xs text-amber-400 font-medium ml-3 truncate max-w-xs">
                     Nenhum osso selecionado
                 </div>
             </div>
@@ -206,14 +215,24 @@
             </div>
         </div>
 
-        <div class="relative overflow-x-auto select-none" id="flash-timeline-scroll">
-            <div id="flash-timeline-wrapper" class="relative min-w-full h-14 bg-slate-950 cursor-pointer">
-                <div id="flash-ruler" class="flash-ruler w-full"></div>
-                <div id="flash-track" class="flash-track-lane w-full flex items-center">
-                    <div id="keyframes-container" class="absolute inset-0"></div>
+        <!-- Área Dividida -->
+        <div class="flex-1 flex overflow-hidden relative">
+            <div class="w-56 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-10 select-none">
+                <div class="h-[26px] bg-slate-950 border-b border-slate-800 px-3 flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Osso / Animação
                 </div>
-                <div id="flash-playhead" class="flash-playhead" style="left: 0px;">
-                    <div class="flash-playhead-head"></div>
+                <div id="timeline-headers-list" class="flex-1 overflow-y-hidden"></div>
+            </div>
+
+            <div id="timeline-scroll-area" class="flex-1 overflow-auto relative select-none bg-slate-950">
+                <div id="timeline-tracks-wrapper" class="relative min-w-[800px]">
+                    <div id="timeline-ruler" class="timeline-ruler w-full sticky top-0 z-20"></div>
+
+                    <div id="tracks-container" class="relative w-full"></div>
+
+                    <div id="timeline-playhead" class="timeline-playhead" style="left: 0px;">
+                        <div class="timeline-playhead-head"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -231,19 +250,25 @@
         let currentTime = 0;
         let lastTime = performance.now();
 
+        let autoKeyEnabled = false;
+
         let undoStack = [];
         let redoStack = [];
         const MAX_HISTORY = 30;
 
         let initialBoneTransforms = new Map();
         let boneKeyframes = {};
+        let boneTimelineSettings = {};
 
-        const SAVE_PREFIX = 'FBX_RIG_EDITOR_PROJECT_V6_';
+        const SAVE_PREFIX = 'FBX_RIG_STUDIO_V12_';
         let currentProjectKey = null;
         let currentFileInfo = null;
 
         let contextMenuTimeTarget = 0;
         let contextMenuKeyframeTarget = null;
+        let contextMenuBoneTarget = null;
+
+        let draggedKeyframeData = null;
 
         const container = document.getElementById('canvas-container');
         const fileInput = document.getElementById('fileInput');
@@ -260,6 +285,8 @@
         const exportAnimBtn = document.getElementById('exportAnimBtn');
         const saveProjectBtn = document.getElementById('saveProjectBtn');
         const activeBoneIndicator = document.getElementById('active-bone-indicator');
+        const autoKeyBtn = document.getElementById('autoKeyBtn');
+        const autoKeyStatus = document.getElementById('autoKeyStatus');
 
         const btnTranslate = document.getElementById('btn-translate');
         const btnRotate = document.getElementById('btn-rotate');
@@ -276,10 +303,12 @@
         const playIcon = document.getElementById('playIcon');
         const stopBtn = document.getElementById('stopBtn');
         const currentTimeText = document.getElementById('current-time-text');
-        const flashTimelineWrapper = document.getElementById('flash-timeline-wrapper');
-        const flashPlayhead = document.getElementById('flash-playhead');
-        const keyframesContainer = document.getElementById('keyframes-container');
-        const flashRuler = document.getElementById('flash-ruler');
+        
+        const timelineScrollArea = document.getElementById('timeline-scroll-area');
+        const timelineHeadersList = document.getElementById('timeline-headers-list');
+        const tracksContainer = document.getElementById('tracks-container');
+        const timelineRuler = document.getElementById('timeline-ruler');
+        const timelinePlayhead = document.getElementById('timeline-playhead');
 
         const timelineContextMenu = document.getElementById('timeline-context-menu');
         const ctxAddKeyframe = document.getElementById('ctx-add-keyframe');
@@ -321,6 +350,10 @@
                 if (e.value) {
                     pushHistoryState();
                 } else if (selectedBone) {
+                    // Atualiza ou cria keyframe ao soltar a transformação
+                    if (autoKeyEnabled || hasKeyframeAtCurrentTime(selectedBone)) {
+                        insertKeyframeForBone(selectedBone, true);
+                    }
                     saveProjectState();
                     updateInputsFromBone();
                     updateHitboxPositions();
@@ -371,12 +404,31 @@
             applySerializedState(nextState);
         }
 
+        function hasKeyframeAtCurrentTime(bone) {
+            if (!bone || !boneKeyframes[bone.name]) return false;
+            const time = parseFloat(currentTime.toFixed(2));
+            return boneKeyframes[bone.name].some(k => Math.abs(k.time - time) <= 0.01);
+        }
+
         function setupEventListeners() {
             btnTranslate.addEventListener('click', () => setTransformMode('translate'));
             btnRotate.addEventListener('click', () => setTransformMode('rotate'));
             btnScale.addEventListener('click', () => setTransformMode('scale'));
 
             deselectBoneBtn.addEventListener('click', () => selectBone(null));
+
+            autoKeyBtn.addEventListener('click', () => {
+                autoKeyEnabled = !autoKeyEnabled;
+                if (autoKeyEnabled) {
+                    autoKeyBtn.className = "bg-red-600/20 border border-red-500 text-red-300 px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition animate-pulse";
+                    autoKeyStatus.textContent = "ON";
+                    autoKeyStatus.className = "text-red-400 font-bold";
+                } else {
+                    autoKeyBtn.className = "bg-slate-800 border border-slate-700 text-slate-400 px-3 py-1.5 rounded-lg text-xs flex items-center space-x-1.5 transition";
+                    autoKeyStatus.textContent = "OFF";
+                    autoKeyStatus.className = "text-slate-500";
+                }
+            });
 
             window.addEventListener('keydown', (e) => {
                 const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
@@ -396,6 +448,7 @@
                 if (e.key === 'w' || e.key === 'W') setTransformMode('translate');
                 if (e.key === 'e' || e.key === 'E') setTransformMode('rotate');
                 if (e.key === 'r' || e.key === 'R') setTransformMode('scale');
+                if (e.key === 'k' || e.key === 'K') insertKeyframeForBone(selectedBone, true);
             });
 
             selectedBoneRenameInput.addEventListener('change', (e) => {
@@ -410,7 +463,12 @@
             [posX, posY, posZ, rotX, rotY, rotZ].forEach(input => {
                 if (input) {
                     input.addEventListener('focus', () => pushHistoryState());
-                    input.addEventListener('change', updateBoneFromInputs);
+                    input.addEventListener('change', () => {
+                        updateBoneFromInputs();
+                        if (selectedBone && (autoKeyEnabled || hasKeyframeAtCurrentTime(selectedBone))) {
+                            insertKeyframeForBone(selectedBone, true);
+                        }
+                    });
                 }
             });
 
@@ -435,34 +493,16 @@
                 applyPoseAtTime(currentTime);
             });
 
-            flashTimelineWrapper.addEventListener('mousedown', (e) => {
+            timelineScrollArea.addEventListener('scroll', () => {
+                timelineHeadersList.scrollTop = timelineScrollArea.scrollTop;
+            });
+
+            timelineRuler.addEventListener('mousedown', (e) => {
                 if (e.button === 0) {
                     hideContextMenu();
                     isDraggingTimeline = true;
                     seekTimeline(e);
                 }
-            });
-
-            flashTimelineWrapper.addEventListener('contextmenu', (e) => {
-                e.preventDefault();
-                if (!selectedBone) return;
-
-                const rect = flashTimelineWrapper.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                contextMenuTimeTarget = parseFloat(((clickX / rect.width) * DURATION).toFixed(2));
-
-                const kfs = boneKeyframes[selectedBone.name] || [];
-                contextMenuKeyframeTarget = kfs.find(k => Math.abs(k.time - contextMenuTimeTarget) < 0.1) || null;
-
-                if (contextMenuKeyframeTarget) {
-                    ctxDeleteKeyframe.classList.remove('hidden');
-                } else {
-                    ctxDeleteKeyframe.classList.add('hidden');
-                }
-
-                timelineContextMenu.style.left = `${e.clientX}px`;
-                timelineContextMenu.style.top = `${e.clientY - 80}px`;
-                timelineContextMenu.classList.remove('hidden');
             });
 
             document.addEventListener('click', (e) => {
@@ -473,32 +513,48 @@
                 currentTime = contextMenuTimeTarget;
                 updateTimelineUI();
                 applyPoseAtTime(currentTime);
-                insertKeyframe();
+                if (contextMenuBoneTarget) {
+                    selectBone(contextMenuBoneTarget);
+                    insertKeyframeForBone(contextMenuBoneTarget, true);
+                }
                 hideContextMenu();
             });
 
             ctxDeleteKeyframe.addEventListener('click', () => {
-                if (contextMenuKeyframeTarget && selectedBone) {
-                    deleteKeyframeAtTime(selectedBone.name, contextMenuKeyframeTarget.time);
+                if (contextMenuKeyframeTarget && contextMenuBoneTarget) {
+                    deleteKeyframeAtTime(contextMenuBoneTarget.name, contextMenuKeyframeTarget.time);
                 }
                 hideContextMenu();
             });
 
             ctxClearAll.addEventListener('click', () => {
-                if (selectedBone) {
+                if (contextMenuBoneTarget) {
                     pushHistoryState();
-                    boneKeyframes[selectedBone.name] = [];
-                    renderTimelineKeyframes();
+                    boneKeyframes[contextMenuBoneTarget.name] = [];
+                    renderTimelineTracks();
                     applyPoseAtTime(currentTime);
                     saveProjectState();
                 }
                 hideContextMenu();
             });
 
-            window.addEventListener('mousemove', (e) => { if (isDraggingTimeline) seekTimeline(e); });
-            window.addEventListener('mouseup', () => isDraggingTimeline = false);
+            window.addEventListener('mousemove', (e) => { 
+                if (isDraggingTimeline) {
+                    seekTimeline(e);
+                } else if (draggedKeyframeData) {
+                    handleKeyframeDrag(e);
+                }
+            });
 
-            addKeyframeBtn.addEventListener('click', insertKeyframe);
+            window.addEventListener('mouseup', () => { 
+                isDraggingTimeline = false;
+                if (draggedKeyframeData) {
+                    draggedKeyframeData = null;
+                    saveProjectState();
+                }
+            });
+
+            addKeyframeBtn.addEventListener('click', () => insertKeyframeForBone(selectedBone, true));
             exportAnimBtn.addEventListener('click', exportKeyframesJSON);
 
             renderer.domElement.addEventListener('pointerdown', onPointerDownSelectBone);
@@ -510,13 +566,13 @@
 
         function setTransformMode(mode) {
             transformControls.setMode(mode);
-            btnTranslate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
-            btnRotate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
-            btnScale.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition flex items-center space-x-1.5";
+            btnTranslate.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+            btnRotate.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
+            btnScale.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition";
 
-            if (mode === 'translate') btnTranslate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
-            if (mode === 'rotate') btnRotate.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
-            if (mode === 'scale') btnScale.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
+            if (mode === 'translate') btnTranslate.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white transition";
+            if (mode === 'rotate') btnRotate.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white transition";
+            if (mode === 'scale') btnScale.className = "px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white transition";
         }
 
         function renameBone(bone, newName) {
@@ -530,6 +586,11 @@
                 boneKeyframes[newName] = [];
             }
 
+            if (boneTimelineSettings[oldName]) {
+                boneTimelineSettings[newName] = boneTimelineSettings[oldName];
+                delete boneTimelineSettings[oldName];
+            }
+
             bone.name = newName;
 
             if (selectedBone === bone) {
@@ -538,7 +599,7 @@
             }
 
             renderBonesList();
-            renderTimelineKeyframes();
+            renderTimelineTracks();
             saveProjectState();
         }
 
@@ -573,6 +634,7 @@
             selectBone(null);
             bonesList = [];
             boneKeyframes = {};
+            boneTimelineSettings = {};
             initialBoneTransforms.clear();
 
             currentModel = object;
@@ -581,6 +643,7 @@
                 if (child.isBone) {
                     bonesList.push(child);
                     boneKeyframes[child.name] = [];
+                    boneTimelineSettings[child.name] = { visibleInTimeline: true, enabledAnimation: true };
                     initialBoneTransforms.set(child.uuid, {
                         position: child.position.clone(),
                         quaternion: child.quaternion.clone(),
@@ -604,7 +667,7 @@
             createBoneHitboxes();
             emptyState.classList.add('hidden');
             renderBonesList();
-            renderTimelineKeyframes();
+            renderTimelineTracks();
             restoreProjectState();
         }
 
@@ -672,7 +735,6 @@
             }
         }
 
-        // Renderização da Lista de Ossos com opção de Edição
         function renderBonesList() {
             bonesListContainer.innerHTML = '';
             boneCountEl.textContent = `${bonesList.length} ossos`;
@@ -680,24 +742,31 @@
             bonesList.forEach(bone => {
                 const container = document.createElement('div');
                 container.id = `bone-item-${bone.name}`;
-                container.className = "group w-full px-3 py-1.5 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between border border-transparent cursor-pointer";
+                container.className = "group w-full px-2 py-1 rounded-lg text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between border border-transparent cursor-pointer";
 
                 const labelDiv = document.createElement('div');
-                labelDiv.className = "flex items-center space-x-2 truncate flex-1 mr-2";
-                labelDiv.innerHTML = `<i class="fa-solid fa-bone text-indigo-400 shrink-0"></i><span class="bone-name-text truncate">${bone.name}</span>`;
+                labelDiv.className = "flex items-center space-x-1.5 truncate flex-1 mr-1";
+                labelDiv.innerHTML = `<i class="fa-solid fa-bone text-indigo-400 shrink-0 text-[10px]"></i><span class="bone-name-text truncate">${bone.name}</span>`;
 
-                const editBtn = document.createElement('button');
-                editBtn.className = "opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-400 p-1 rounded transition shrink-0";
-                editBtn.title = "Renomear osso";
-                editBtn.innerHTML = `<i class="fa-solid fa-pen text-[10px]"></i>`;
+                const actionsDiv = document.createElement('div');
+                actionsDiv.className = "flex items-center space-x-1 shrink-0";
 
-                editBtn.addEventListener('click', (e) => {
+                const visBtn = document.createElement('button');
+                const isVis = boneTimelineSettings[bone.name]?.visibleInTimeline ?? true;
+                visBtn.className = `p-1 text-[10px] rounded hover:bg-slate-700 ${isVis ? 'text-blue-400' : 'text-slate-600'}`;
+                visBtn.title = isVis ? "Ocultar da Timeline" : "Mostrar na Timeline";
+                visBtn.innerHTML = `<i class="fa-solid ${isVis ? 'fa-eye' : 'fa-eye-slash'}"></i>`;
+                visBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    startRenamingInList(container, bone);
+                    if (!boneTimelineSettings[bone.name]) boneTimelineSettings[bone.name] = { visibleInTimeline: true, enabledAnimation: true };
+                    boneTimelineSettings[bone.name].visibleInTimeline = !boneTimelineSettings[bone.name].visibleInTimeline;
+                    renderBonesList();
+                    renderTimelineTracks();
                 });
 
+                actionsDiv.appendChild(visBtn);
                 container.appendChild(labelDiv);
-                container.appendChild(editBtn);
+                container.appendChild(actionsDiv);
 
                 container.addEventListener('click', () => selectBone(bone));
                 bonesListContainer.appendChild(container);
@@ -711,39 +780,6 @@
             }
         }
 
-        // Permite editar o nome diretamente na lista
-        function startRenamingInList(container, bone) {
-            const textSpan = container.querySelector('.bone-name-text');
-            if (!textSpan) return;
-
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = bone.name;
-            input.className = 'bg-slate-950 border border-blue-500 rounded px-1.5 py-0.5 text-xs text-blue-300 font-bold focus:outline-none w-full';
-
-            const finishRename = () => {
-                const newName = input.value.trim();
-                if (newName && newName !== bone.name) {
-                    pushHistoryState();
-                    renameBone(bone, newName);
-                } else {
-                    renderBonesList();
-                }
-            };
-
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') finishRename();
-                if (e.key === 'Escape') renderBonesList();
-                e.stopPropagation();
-            });
-
-            input.addEventListener('blur', finishRename);
-
-            textSpan.replaceWith(input);
-            input.focus();
-            input.select();
-        }
-
         function selectBone(bone) {
             selectedBone = bone;
 
@@ -752,6 +788,11 @@
             });
 
             if (selectedBone) {
+                if (!boneTimelineSettings[selectedBone.name]) {
+                    boneTimelineSettings[selectedBone.name] = { visibleInTimeline: true, enabledAnimation: true };
+                }
+                boneTimelineSettings[selectedBone.name].visibleInTimeline = true;
+
                 transformControls.attach(selectedBone);
                 selectedBoneRenameInput.value = bone.name;
                 selectedBoneCard.classList.remove('hidden');
@@ -777,7 +818,15 @@
                 activeBoneIndicator.textContent = "Nenhum osso selecionado";
             }
 
-            renderTimelineKeyframes();
+            renderBonesList();
+            renderTimelineTracks();
+
+            if (selectedBone) {
+                const trackEl = document.getElementById(`track-lane-${selectedBone.name}`);
+                if (trackEl) {
+                    trackEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
         }
 
         function updateInputsFromBone() {
@@ -806,28 +855,44 @@
             saveProjectState();
         }
 
-        function insertKeyframe() {
-            if (!selectedBone) return;
+        // --- INSERÇÃO / ATUALIZAÇÃO INDEPENDENTE DE KEYFRAME ---
+        function insertKeyframeForBone(bone, forceCurrentState = true) {
+            if (!bone) return;
 
             pushHistoryState();
 
             const time = parseFloat(currentTime.toFixed(2));
-            const name = selectedBone.name;
-
-            const frameData = {
-                time: time,
-                position: selectedBone.position.clone(),
-                quaternion: selectedBone.quaternion.clone(),
-                scale: selectedBone.scale.clone()
-            };
+            const name = bone.name;
 
             if (!boneKeyframes[name]) boneKeyframes[name] = [];
             
+            // Se for o primeiro keyframe e não estiver no tempo zero, grava a pose inicial no tempo 0.00s para permitir interpolação limpa
+            if (boneKeyframes[name].length === 0 && time > 0) {
+                const init = initialBoneTransforms.get(bone.uuid);
+                if (init) {
+                    boneKeyframes[name].push({
+                        time: 0,
+                        position: init.position.clone(),
+                        quaternion: init.quaternion.clone().normalize(),
+                        scale: init.scale.clone()
+                    });
+                }
+            }
+
+            const frameData = {
+                time: time,
+                position: bone.position.clone(),
+                quaternion: bone.quaternion.clone().normalize(),
+                scale: bone.scale.clone()
+            };
+
+            // Substitui keyframe se já existir um no mesmo tempo
             boneKeyframes[name] = boneKeyframes[name].filter(k => Math.abs(k.time - time) > 0.01);
             boneKeyframes[name].push(frameData);
             boneKeyframes[name].sort((a, b) => a.time - b.time);
 
-            renderTimelineKeyframes();
+            renderTimelineTracks();
+            applyPoseAtTime(currentTime);
             saveProjectState();
 
             addKeyframeBtn.classList.add('bg-emerald-600');
@@ -838,72 +903,164 @@
             if (!boneKeyframes[boneName]) return;
             pushHistoryState();
             boneKeyframes[boneName] = boneKeyframes[boneName].filter(k => Math.abs(k.time - time) > 0.01);
-            renderTimelineKeyframes();
+            renderTimelineTracks();
             applyPoseAtTime(currentTime);
             saveProjectState();
         }
 
-        function renderTimelineKeyframes() {
-            keyframesContainer.innerHTML = '';
-            if (!selectedBone) return;
+        function handleKeyframeDrag(e) {
+            if (!draggedKeyframeData) return;
 
-            const kfs = boneKeyframes[selectedBone.name] || [];
+            const { bone, keyframeObj, laneEl } = draggedKeyframeData;
+            const rect = laneEl.getBoundingClientRect();
+            let clickX = e.clientX - rect.left;
+            clickX = Math.max(0, Math.min(clickX, rect.width));
 
-            for (let i = 0; i < kfs.length - 1; i++) {
-                const k1 = kfs[i];
-                const k2 = kfs[i + 1];
+            const newTime = parseFloat(((clickX / rect.width) * DURATION).toFixed(2));
+            keyframeObj.time = newTime;
 
-                const startPct = (k1.time / DURATION) * 100;
-                const endPct = (k2.time / DURATION) * 100;
-                const widthPct = endPct - startPct;
+            boneKeyframes[bone.name].sort((a, b) => a.time - b.time);
 
-                const interpBar = document.createElement('div');
-                interpBar.className = 'flash-interpolation-bar';
-                interpBar.style.left = `${startPct}%`;
-                interpBar.style.width = `${widthPct}%`;
-                interpBar.title = `Interpolação: ${k1.time}s ➔ ${k2.time}s`;
+            currentTime = newTime;
+            updateTimelineUI();
+            renderTimelineTracks();
+            applyPoseAtTime(currentTime);
+        }
 
-                keyframesContainer.appendChild(interpBar);
-            }
+        function renderTimelineTracks() {
+            timelineHeadersList.innerHTML = '';
+            tracksContainer.innerHTML = '';
 
-            kfs.forEach(kf => {
-                const pct = (kf.time / DURATION) * 100;
-                const dot = document.createElement('div');
-                dot.className = 'flash-keyframe';
-                dot.style.left = `${pct}%`;
-                dot.title = `Keyframe: ${kf.time}s (Clique direito para opções)`;
-                
-                dot.addEventListener('click', (e) => {
+            const visibleBones = bonesList.filter(b => {
+                const settings = boneTimelineSettings[b.name];
+                return settings ? settings.visibleInTimeline : true;
+            });
+
+            visibleBones.forEach(bone => {
+                const settings = boneTimelineSettings[bone.name] || { visibleInTimeline: true, enabledAnimation: true };
+                const isSelected = selectedBone === bone;
+
+                const header = document.createElement('div');
+                header.className = `h-[32px] px-2 flex items-center justify-between border-b border-slate-800 font-mono text-xs ${isSelected ? 'bg-blue-950/60 text-blue-300 font-bold border-l-2 border-l-blue-500' : 'text-slate-400 hover:bg-slate-800/50'}`;
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'truncate flex-1 mr-1 cursor-pointer';
+                titleSpan.textContent = bone.name;
+                titleSpan.addEventListener('click', () => selectBone(bone));
+
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'flex items-center space-x-1 shrink-0';
+
+                const enableBtn = document.createElement('button');
+                enableBtn.className = `p-1 text-[10px] rounded hover:bg-slate-700 ${settings.enabledAnimation ? 'text-emerald-400' : 'text-slate-600'}`;
+                enableBtn.title = settings.enabledAnimation ? "Animação Habilitada" : "Animação Desabilitada";
+                enableBtn.innerHTML = `<i class="fa-solid ${settings.enabledAnimation ? 'fa-circle-check' : 'fa-circle-xmark'}"></i>`;
+                enableBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    currentTime = kf.time;
-                    updateTimelineUI();
+                    settings.enabledAnimation = !settings.enabledAnimation;
+                    renderTimelineTracks();
                     applyPoseAtTime(currentTime);
                 });
 
-                keyframesContainer.appendChild(dot);
+                controlsDiv.appendChild(enableBtn);
+                header.appendChild(titleSpan);
+                header.appendChild(controlsDiv);
+                timelineHeadersList.appendChild(header);
+
+                const lane = document.createElement('div');
+                lane.id = `track-lane-${bone.name}`;
+                lane.className = `track-lane ${isSelected ? 'selected' : ''}`;
+                lane.style.opacity = settings.enabledAnimation ? '1' : '0.4';
+
+                const kfs = boneKeyframes[bone.name] || [];
+
+                for (let i = 0; i < kfs.length - 1; i++) {
+                    const k1 = kfs[i];
+                    const k2 = kfs[i + 1];
+
+                    const startPct = (k1.time / DURATION) * 100;
+                    const endPct = (k2.time / DURATION) * 100;
+                    const widthPct = endPct - startPct;
+
+                    const interpBar = document.createElement('div');
+                    interpBar.className = 'flash-interpolation-bar';
+                    interpBar.style.left = `${startPct}%`;
+                    interpBar.style.width = `${widthPct}%`;
+                    interpBar.title = `${bone.name}: ${k1.time}s ➔ ${k2.time}s`;
+
+                    lane.appendChild(interpBar);
+                }
+
+                kfs.forEach(kf => {
+                    const pct = (kf.time / DURATION) * 100;
+                    const dot = document.createElement('div');
+                    dot.className = 'flash-keyframe';
+                    dot.style.left = `${pct}%`;
+                    dot.title = `${bone.name} Keyframe: ${kf.time}s`;
+                    
+                    dot.addEventListener('mousedown', (e) => {
+                        if (e.button === 0) {
+                            e.stopPropagation();
+                            selectBone(bone);
+                            pushHistoryState();
+                            draggedKeyframeData = { bone, keyframeObj: kf, laneEl: lane };
+                        }
+                    });
+
+                    dot.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        contextMenuBoneTarget = bone;
+                        contextMenuTimeTarget = kf.time;
+                        contextMenuKeyframeTarget = kf;
+
+                        ctxDeleteKeyframe.classList.remove('hidden');
+                        timelineContextMenu.style.left = `${e.clientX}px`;
+                        timelineContextMenu.style.top = `${e.clientY - 80}px`;
+                        timelineContextMenu.classList.remove('hidden');
+                    });
+
+                    lane.appendChild(dot);
+                });
+
+                lane.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    const rect = lane.getBoundingClientRect();
+                    const clickX = e.clientX - rect.left;
+                    contextMenuBoneTarget = bone;
+                    contextMenuTimeTarget = parseFloat(((clickX / rect.width) * DURATION).toFixed(2));
+                    contextMenuKeyframeTarget = null;
+
+                    ctxDeleteKeyframe.classList.add('hidden');
+                    timelineContextMenu.style.left = `${e.clientX}px`;
+                    timelineContextMenu.style.top = `${e.clientY - 80}px`;
+                    timelineContextMenu.classList.remove('hidden');
+                });
+
+                tracksContainer.appendChild(lane);
             });
         }
 
         function buildRuler() {
-            flashRuler.innerHTML = '';
+            timelineRuler.innerHTML = '';
             for (let t = 0; t <= DURATION; t += 0.5) {
                 const pct = (t / DURATION) * 100;
                 const tick = document.createElement('div');
-                tick.className = 'flash-frame-tick major';
+                tick.className = 'timeline-frame-tick major';
                 tick.style.left = `${pct}%`;
 
                 const num = document.createElement('div');
-                num.className = 'flash-frame-number';
+                num.className = 'timeline-frame-number';
                 num.style.left = `${pct}%`;
                 num.textContent = t.toFixed(1) + 's';
 
-                flashRuler.appendChild(tick);
-                flashRuler.appendChild(num);
+                timelineRuler.appendChild(tick);
+                timelineRuler.appendChild(num);
             }
         }
 
         function seekTimeline(e) {
-            const rect = flashTimelineWrapper.getBoundingClientRect();
+            const rect = tracksContainer.getBoundingClientRect();
             let x = e.clientX - rect.left;
             x = Math.max(0, Math.min(x, rect.width));
             
@@ -914,7 +1071,7 @@
 
         function updateTimelineUI() {
             const pct = (currentTime / DURATION) * 100;
-            flashPlayhead.style.left = `${pct}%`;
+            timelinePlayhead.style.left = `${pct}%`;
             currentTimeText.textContent = currentTime.toFixed(2) + 's';
         }
 
@@ -922,6 +1079,19 @@
             if (!currentModel) return;
 
             bonesList.forEach(bone => {
+                const settings = boneTimelineSettings[bone.name];
+                
+                if (settings && !settings.enabledAnimation) {
+                    const init = initialBoneTransforms.get(bone.uuid);
+                    if (init) {
+                        bone.position.copy(init.position);
+                        bone.quaternion.copy(init.quaternion);
+                        bone.scale.copy(init.scale);
+                        bone.updateMatrixWorld(true);
+                    }
+                    return;
+                }
+
                 const kfs = boneKeyframes[bone.name];
                 
                 if (!kfs || kfs.length === 0) {
@@ -930,6 +1100,7 @@
                         bone.position.copy(init.position);
                         bone.quaternion.copy(init.quaternion);
                         bone.scale.copy(init.scale);
+                        bone.updateMatrixWorld(true);
                     }
                     return;
                 }
@@ -939,6 +1110,7 @@
                     bone.position.copy(k.position);
                     bone.quaternion.copy(k.quaternion);
                     bone.scale.copy(k.scale);
+                    bone.updateMatrixWorld(true);
                     return;
                 }
 
@@ -947,6 +1119,7 @@
                     bone.position.copy(last.position);
                     bone.quaternion.copy(last.quaternion);
                     bone.scale.copy(last.scale);
+                    bone.updateMatrixWorld(true);
                     return;
                 }
 
@@ -960,7 +1133,9 @@
                         
                         bone.position.lerpVectors(k1.position, k2.position, alpha);
                         bone.quaternion.slerpQuaternions(k1.quaternion, k2.quaternion, alpha);
+                        bone.quaternion.normalize();
                         bone.scale.lerpVectors(k1.scale, k2.scale, alpha);
+                        bone.updateMatrixWorld(true);
                         break;
                     }
                 }
@@ -993,12 +1168,14 @@
             });
 
             return {
-                version: 6,
+                version: 12,
                 file: currentFileInfo,
                 currentTime,
                 selectedBone: selectedBone ? selectedBone.name : null,
                 transforms,
-                keyframes
+                keyframes,
+                timelineSettings: boneTimelineSettings,
+                autoKeyEnabled
             };
         }
 
@@ -1018,6 +1195,10 @@
                 });
             }
 
+            if (state.timelineSettings) {
+                boneTimelineSettings = state.timelineSettings;
+            }
+
             boneKeyframes = {};
             bonesList.forEach(b => boneKeyframes[b.name] = []);
             if (state.keyframes) {
@@ -1027,7 +1208,7 @@
                     boneKeyframes[name] = (arr || []).map(k => ({
                         time: Number(k.time) || 0,
                         position: new THREE.Vector3().fromArray(k.position || [0,0,0]),
-                        quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0,0,0,1]),
+                        quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0,0,0,1]).normalize(),
                         scale: new THREE.Vector3().fromArray(k.scale || [1,1,1])
                     })).sort((a,b) => a.time - b.time);
                 });
@@ -1035,7 +1216,7 @@
 
             currentTime = THREE.MathUtils.clamp(Number(state.currentTime) || 0, 0, DURATION);
             renderBonesList();
-            renderTimelineKeyframes();
+            renderTimelineTracks();
             updateTimelineUI();
             applyPoseAtTime(currentTime);
 
@@ -1059,7 +1240,7 @@
                     setTimeout(() => {
                         saveProjectBtn.classList.remove('bg-blue-600');
                         saveProjectBtn.classList.add('bg-emerald-700');
-                        if (old) old.textContent = 'Salvar alterações';
+                        if (old) old.textContent = 'Salvar Projeto';
                     }, 900);
                 }
             } catch (err) {
@@ -1092,7 +1273,7 @@
 
         function importKeyframesJSON(file) {
             if (!currentModel) {
-                alert("Por favor, carregue um modelo FBX primeiro antes de importar keyframes.");
+                alert("Por favor, carregue um modelo FBX primeiro.");
                 return;
             }
 
@@ -1109,18 +1290,22 @@
                             boneKeyframes[boneName] = kfs.map(k => ({
                                 time: Number(k.time) || 0,
                                 position: new THREE.Vector3().fromArray(k.position || [0, 0, 0]),
-                                quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0, 0, 0, 1]),
+                                quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0, 0, 0, 1]).normalize(),
                                 scale: new THREE.Vector3().fromArray(k.scale || [1, 1, 1])
                             })).sort((a, b) => a.time - b.time);
+
+                            if (!boneTimelineSettings[boneName]) {
+                                boneTimelineSettings[boneName] = { visibleInTimeline: true, enabledAnimation: true };
+                            }
                         }
                     });
 
-                    renderTimelineKeyframes();
+                    renderTimelineTracks();
                     applyPoseAtTime(currentTime);
                     saveProjectState();
                     alert("Keyframes importados com sucesso!");
                 } catch (err) {
-                    alert("Erro ao ler ou processar o arquivo de keyframes JSON.");
+                    alert("Erro ao processar o arquivo JSON.");
                     console.error(err);
                 }
             };
