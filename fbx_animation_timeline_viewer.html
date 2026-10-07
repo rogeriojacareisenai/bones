@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FBX Rigging & Keyframe Animator</title>
+    <title>FBX Rigging & Keyframe Interpolation Editor</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -38,8 +38,9 @@
         .flash-frame-tick { position: absolute; bottom: 0; border-left: 1px solid #64748b; height: 6px; }
         .flash-frame-tick.major { height: 12px; border-left-color: #94a3b8; }
         .flash-frame-number { position: absolute; top: 2px; font-size: 9px; font-family: monospace; color: #94a3b8; transform: translateX(-50%); }
-        .flash-track-lane { height: 32px; background-color: #1e293b; position: relative; border-bottom: 1px solid #0f172a; }
-        .flash-keyframe { position: absolute; top: 50%; width: 10px; height: 10px; background-color: #f59e0b; border: 1px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 5; cursor: pointer; }
+        .flash-track-lane { height: 36px; background-color: #1e293b; position: relative; border-bottom: 1px solid #0f172a; }
+        .flash-keyframe { position: absolute; top: 50%; width: 12px; height: 12px; background-color: #f59e0b; border: 1.5px solid #b45309; transform: translate(-50%, -50%) rotate(45deg); z-index: 10; cursor: pointer; }
+        .flash-interpolation-bar { position: absolute; top: 50%; height: 6px; background: linear-gradient(90deg, #3b82f6, #6366f1); transform: translateY(-50%); z-index: 5; border-radius: 3px; opacity: 0.85; border: 1px solid #1d4ed8; }
         .flash-playhead { position: absolute; top: 0; bottom: 0; width: 2px; background-color: #ef4444; z-index: 20; pointer-events: none; }
         .flash-playhead-head { position: absolute; top: 0; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background-color: #ef4444; clip-path: polygon(0 0, 100% 0, 50% 100%); }
     </style>
@@ -53,8 +54,8 @@
                 <i class="fa-solid fa-bone text-lg"></i>
             </div>
             <div>
-                <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Bone Rigging & Keyframe Editor</h1>
-                <p class="text-xs text-slate-400">Editor Manual de Pose e Animação de Ossos</p>
+                <h1 class="font-bold text-base tracking-tight bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400 bg-clip-text text-transparent">FBX Rigging & Keyframe Animator</h1>
+                <p class="text-xs text-slate-400">Linha do Tempo Individual por Osso e Interpolação Suave</p>
             </div>
         </div>
 
@@ -64,6 +65,11 @@
                 <span>Carregar FBX</span>
                 <input type="file" id="fileInput" accept=".fbx" class="hidden">
             </label>
+
+            <button id="saveProjectBtn" class="bg-emerald-700 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition" title="Salvar alterações deste projeto">
+                <i class="fa-solid fa-floppy-disk"></i>
+                <span>Salvar alterações</span>
+            </button>
 
             <button id="exportAnimBtn" class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-2 rounded-xl text-xs flex items-center space-x-1.5 transition">
                 <i class="fa-solid fa-download"></i>
@@ -84,7 +90,7 @@
             <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center pointer-events-none z-10">
                 <i class="fa-solid fa-file-arrow-up text-5xl text-slate-700 mb-3"></i>
                 <h3 class="text-base font-bold text-slate-300">Nenhum Modelo FBX Carregado</h3>
-                <p class="text-xs text-slate-500 max-w-sm mt-1">Carregue um arquivo .FBX para manipular os ossos e criar animações.</p>
+                <p class="text-xs text-slate-500 max-w-sm mt-1">Carregue um arquivo .FBX para manipular os ossos, ver interpolações e editar.</p>
             </div>
 
             <!-- Toolbar de Modos de Transformação -->
@@ -103,12 +109,12 @@
                 </button>
             </div>
 
-            <!-- Painel Numérico do Osso -->
-            <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-2xl shadow-xl text-xs z-10 hidden w-72">
+            <!-- Painel de Detalhes e Renomeação do Osso Selecionado -->
+            <div id="selected-bone-card" class="absolute bottom-4 left-4 bg-slate-900/90 backdrop-blur border border-slate-800 p-3 rounded-2xl shadow-xl text-xs z-10 hidden w-80">
                 <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate">
+                    <div class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate flex-1 mr-2">
                         <i class="fa-solid fa-bone text-indigo-400"></i>
-                        <span id="selected-bone-name" class="text-blue-400 truncate">Osso</span>
+                        <input type="text" id="selected-bone-rename-input" class="bg-slate-950 border border-slate-700 rounded px-2 py-0.5 text-xs text-blue-400 font-bold focus:outline-none focus:border-blue-500 w-full" title="Digite para renomear o osso">
                     </div>
                     <button id="deselectBoneBtn" class="text-slate-500 hover:text-slate-300 text-xs"><i class="fa-solid fa-xmark"></i></button>
                 </div>
@@ -156,7 +162,7 @@
         </aside>
     </div>
 
-    <!-- Timeline Estilo Adobe Flash -->
+    <!-- Timeline -->
     <footer class="flash-timeline-container flex flex-col shrink-0 z-30">
         <div class="px-6 py-2 bg-slate-900 flex items-center justify-between border-b border-slate-800">
             <div class="flex items-center space-x-2">
@@ -166,9 +172,16 @@
                 <button id="stopBtn" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center transition border border-slate-700">
                     <i class="fa-solid fa-stop text-xs"></i>
                 </button>
+                <div id="active-bone-indicator" class="text-xs text-amber-400 font-medium ml-4 truncate max-w-xs">
+                    Nenhum osso selecionado
+                </div>
             </div>
 
-            <div class="flex items-center space-x-3 font-mono text-xs">
+            <div class="flex items-center space-x-4 text-xs font-mono">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-1.5 bg-blue-500 rounded-full inline-block"></span>
+                    <span class="text-slate-400 text-[11px]">Interpolação Ativa</span>
+                </div>
                 <span class="text-slate-400">Tempo: <strong id="current-time-text" class="text-amber-400">0.00s</strong> / 5.00s</span>
             </div>
         </div>
@@ -187,18 +200,28 @@
     </footer>
 
     <script>
-        const DURATION = 5.0; // Duração total da timeline em segundos
+        const DURATION = 5.0;
         let scene, camera, renderer, controls, transformControls, skeletonHelper;
         let currentModel = null;
         let bonesList = [];
+        let boneHitboxes = [];
+        let highlightMesh = null;
         let selectedBone = null;
         let isPlaying = false;
         let currentTime = 0;
         let lastTime = performance.now();
 
-        // Estrutura do Gravador de Keyframes:
-        // { [boneName]: Array de objetos { time, position: [], quaternion: [], scale: [] } }
+        // Pilhas do Histórico para Control+Z e Control+Y
+        let undoStack = [];
+        let redoStack = [];
+        const MAX_HISTORY = 30;
+
+        let initialBoneTransforms = new Map();
         let boneKeyframes = {};
+
+        const SAVE_PREFIX = 'FBX_RIG_EDITOR_PROJECT_V5_';
+        let currentProjectKey = null;
+        let currentFileInfo = null;
 
         const container = document.getElementById('canvas-container');
         const fileInput = document.getElementById('fileInput');
@@ -206,12 +229,14 @@
         const emptyState = document.getElementById('empty-state');
         const transformToolbar = document.getElementById('transform-toolbar');
         const selectedBoneCard = document.getElementById('selected-bone-card');
-        const selectedBoneName = document.getElementById('selected-bone-name');
+        const selectedBoneRenameInput = document.getElementById('selected-bone-rename-input');
         const deselectBoneBtn = document.getElementById('deselectBoneBtn');
         const bonesListContainer = document.getElementById('bones-list-container');
         const boneCountEl = document.getElementById('bone-count');
         const addKeyframeBtn = document.getElementById('addKeyframeBtn');
         const exportAnimBtn = document.getElementById('exportAnimBtn');
+        const saveProjectBtn = document.getElementById('saveProjectBtn');
+        const activeBoneIndicator = document.getElementById('active-bone-indicator');
 
         const btnTranslate = document.getElementById('btn-translate');
         const btnRotate = document.getElementById('btn-rotate');
@@ -221,7 +246,7 @@
         const posY = document.getElementById('posY');
         const posZ = document.getElementById('posZ');
         const rotX = document.getElementById('rotX');
-        const rotY = document.getElementById('rotY Rad');
+        const rotY = document.getElementById('rotY');
         const rotZ = document.getElementById('rotZ');
 
         const playBtn = document.getElementById('playBtn');
@@ -251,20 +276,34 @@
             controls.enableDamping = true;
             controls.target.set(0, 50, 0);
 
-            // Gizmo de Transformação
             transformControls = new THREE.TransformControls(camera, renderer.domElement);
             transformControls.size = 0.85;
             transformControls.setMode('rotate');
             scene.add(transformControls);
 
+            const sphereGeom = new THREE.SphereGeometry(2.5, 16, 16);
+            const sphereMat = new THREE.MeshBasicMaterial({ color: 0xeab308, wireframe: true, depthTest: false });
+            highlightMesh = new THREE.Mesh(sphereGeom, sphereMat);
+            highlightMesh.visible = false;
+            highlightMesh.renderOrder = 999;
+            scene.add(highlightMesh);
+
             transformControls.addEventListener('dragging-changed', (e) => {
                 controls.enabled = !e.value;
+                if (e.value) {
+                    pushHistoryState();
+                } else if (selectedBone) {
+                    saveProjectState();
+                    updateInputsFromBone();
+                    updateHitboxPositions();
+                }
             });
 
             transformControls.addEventListener('change', () => {
-                if (selectedBone) {
+                if (selectedBone && !isPlaying) {
                     updateInputsFromBone();
                     if (skeletonHelper) skeletonHelper.update();
+                    updateHitboxPositions();
                 }
             });
 
@@ -283,6 +322,27 @@
             window.addEventListener('resize', onWindowResize);
         }
 
+        function pushHistoryState() {
+            if (!currentModel) return;
+            undoStack.push(serializeProjectState());
+            if (undoStack.length > MAX_HISTORY) undoStack.shift();
+            redoStack = [];
+        }
+
+        function undo() {
+            if (!undoStack.length) return;
+            redoStack.push(serializeProjectState());
+            const prevState = undoStack.pop();
+            applySerializedState(prevState);
+        }
+
+        function redo() {
+            if (!redoStack.length) return;
+            undoStack.push(serializeProjectState());
+            const nextState = redoStack.pop();
+            applySerializedState(nextState);
+        }
+
         function setupEventListeners() {
             btnTranslate.addEventListener('click', () => setTransformMode('translate'));
             btnRotate.addEventListener('click', () => setTransformMode('rotate'));
@@ -291,14 +351,47 @@
             deselectBoneBtn.addEventListener('click', () => selectBone(null));
 
             window.addEventListener('keydown', (e) => {
-                if (e.target.tagName === 'INPUT') return;
+                const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+                
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                    if (e.shiftKey) {
+                        redo();
+                    } else {
+                        undo();
+                    }
+                    e.preventDefault();
+                    return;
+                }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+                    redo();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (isInput) return;
                 if (e.key === 'w' || e.key === 'W') setTransformMode('translate');
                 if (e.key === 'e' || e.key === 'E') setTransformMode('rotate');
                 if (e.key === 'r' || e.key === 'R') setTransformMode('scale');
             });
 
-            [posX, posY, posZ, rotX, document.getElementById('rotY'), rotZ].forEach(input => {
-                if (input) input.addEventListener('input', updateBoneFromInputs);
+            selectedBoneRenameInput.addEventListener('change', (e) => {
+                if (!selectedBone) return;
+                const newName = e.target.value.trim();
+                if (newName && newName !== selectedBone.name) {
+                    pushHistoryState();
+                    renameBone(selectedBone, newName);
+                }
+            });
+
+            [posX, posY, posZ, rotX, rotY, rotZ].forEach(input => {
+                if (input) {
+                    input.addEventListener('focus', () => pushHistoryState());
+                    input.addEventListener('change', updateBoneFromInputs);
+                }
+            });
+
+            saveProjectBtn.addEventListener('click', () => {
+                saveProjectState(true);
             });
 
             fileInput.addEventListener('change', (e) => {
@@ -327,6 +420,8 @@
 
             addKeyframeBtn.addEventListener('click', insertKeyframe);
             exportAnimBtn.addEventListener('click', exportKeyframesJSON);
+
+            renderer.domElement.addEventListener('pointerdown', onPointerDownSelectBone);
         }
 
         function setTransformMode(mode) {
@@ -340,7 +435,30 @@
             if (mode === 'scale') btnScale.className = "px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white transition flex items-center space-x-1.5";
         }
 
+        function renameBone(bone, newName) {
+            const oldName = bone.name;
+            if (boneKeyframes[oldName]) {
+                boneKeyframes[newName] = boneKeyframes[oldName];
+                delete boneKeyframes[oldName];
+            } else {
+                boneKeyframes[newName] = [];
+            }
+
+            bone.name = newName;
+
+            if (selectedBone === bone) {
+                selectedBoneRenameInput.value = newName;
+                activeBoneIndicator.textContent = `Osso: ${newName}`;
+            }
+
+            renderBonesList();
+            renderTimelineKeyframes();
+            saveProjectState();
+        }
+
         function loadFBXFile(file) {
+            currentFileInfo = { name: file.name, size: file.size, lastModified: file.lastModified };
+            currentProjectKey = SAVE_PREFIX + [file.name, file.size, file.lastModified].join('|');
             loadingOverlay.classList.remove('hidden');
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -361,10 +479,15 @@
         function setupFBXModel(object) {
             if (currentModel) scene.remove(currentModel);
             if (skeletonHelper) scene.remove(skeletonHelper);
+            clearBoneHitboxes();
+
+            undoStack = [];
+            redoStack = [];
 
             selectBone(null);
             bonesList = [];
             boneKeyframes = {};
+            initialBoneTransforms.clear();
 
             currentModel = object;
 
@@ -372,6 +495,11 @@
                 if (child.isBone) {
                     bonesList.push(child);
                     boneKeyframes[child.name] = [];
+                    initialBoneTransforms.set(child.uuid, {
+                        position: child.position.clone(),
+                        quaternion: child.quaternion.clone(),
+                        scale: child.scale.clone()
+                    });
                 }
             });
 
@@ -379,7 +507,6 @@
             scene.add(skeletonHelper);
             scene.add(currentModel);
 
-            // Ajusta o enquadramento do modelo
             const box = new THREE.Box3().setFromObject(currentModel);
             const size = box.getSize(new THREE.Vector3());
             const maxDim = Math.max(size.x, size.y, size.z);
@@ -388,9 +515,110 @@
                 currentModel.scale.set(scale, scale, scale);
             }
 
+            createBoneHitboxes();
             emptyState.classList.add('hidden');
             renderBonesList();
             renderTimelineKeyframes();
+            restoreProjectState();
+        }
+
+        function createBoneHitboxes() {
+            clearBoneHitboxes();
+            if (!currentModel) return;
+
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z) || 100;
+            const radius = Math.max(2.5, Math.min(10, maxDim * 0.025));
+            const geom = new THREE.SphereGeometry(radius, 10, 10);
+
+            bonesList.forEach(bone => {
+                const mat = new THREE.MeshBasicMaterial({
+                    transparent: true,
+                    opacity: 0,
+                    depthWrite: false,
+                    depthTest: false
+                });
+                const hitbox = new THREE.Mesh(geom, mat);
+                hitbox.name = '__bone_picker__' + bone.name;
+                hitbox.userData.boneRef = bone;
+                hitbox.frustumCulled = false;
+                scene.add(hitbox);
+                boneHitboxes.push(hitbox);
+            });
+            updateHitboxPositions();
+        }
+
+        function updateHitboxPositions() {
+            const worldPos = new THREE.Vector3();
+            boneHitboxes.forEach(hb => {
+                if (hb.userData.boneRef) {
+                    hb.userData.boneRef.getWorldPosition(worldPos);
+                    hb.position.copy(worldPos);
+                }
+            });
+
+            if (selectedBone && highlightMesh) {
+                selectedBone.getWorldPosition(worldPos);
+                highlightMesh.position.copy(worldPos);
+            }
+        }
+
+        function clearBoneHitboxes() {
+            boneHitboxes.forEach(hb => scene.remove(hb));
+            boneHitboxes = [];
+        }
+
+        function onPointerDownSelectBone(event) {
+            if (event.button !== 0 || transformControls.dragging) return;
+            if (!currentModel) return;
+
+            const rect = renderer.domElement.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+
+            const boneHits = raycaster.intersectObjects(boneHitboxes, false);
+            if (boneHits.length > 0) {
+                const bone = boneHits[0].object.userData.boneRef;
+                if (bone) {
+                    selectBone(bone);
+                    return;
+                }
+            }
+
+            const meshHits = raycaster.intersectObject(currentModel, true);
+            if (meshHits.length > 0) {
+                const hit = meshHits[0];
+                const mesh = hit.object;
+                if (mesh.isSkinnedMesh && mesh.skeleton && hit.face) {
+                    const skinIndex = mesh.geometry.attributes.skinIndex;
+                    const skinWeight = mesh.geometry.attributes.skinWeight;
+                    if (skinIndex && skinWeight) {
+                        let bestBoneIndex = -1;
+                        let bestWeight = -1;
+                        const vertices = [hit.face.a, hit.face.b, hit.face.c];
+
+                        vertices.forEach(vIdx => {
+                            for (let slot = 0; slot < 4; slot++) {
+                                const w = skinWeight.getComponent(vIdx, slot);
+                                const bIdx = skinIndex.getComponent(vIdx, slot);
+                                if (w > bestWeight) {
+                                    bestWeight = w;
+                                    bestBoneIndex = bIdx;
+                                }
+                            }
+                        });
+
+                        if (bestBoneIndex >= 0 && mesh.skeleton.bones[bestBoneIndex]) {
+                            selectBone(mesh.skeleton.bones[bestBoneIndex]);
+                        }
+                    }
+                }
+            }
         }
 
         function renderBonesList() {
@@ -400,34 +628,54 @@
             bonesList.forEach(bone => {
                 const btn = document.createElement('button');
                 btn.id = `bone-item-${bone.name}`;
-                btn.className = "w-full text-left px-3 py-2 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between";
+                btn.className = "w-full text-left px-3 py-2 rounded-xl text-xs font-mono text-slate-300 hover:bg-slate-800 transition flex items-center justify-between border border-transparent";
                 btn.innerHTML = `<span><i class="fa-solid fa-bone text-indigo-400 mr-2"></i>${bone.name}</span>`;
                 btn.addEventListener('click', () => selectBone(bone));
                 bonesListContainer.appendChild(btn);
             });
+
+            if (selectedBone) {
+                const activeBtn = document.getElementById(`bone-item-${selectedBone.name}`);
+                if (activeBtn) {
+                    activeBtn.classList.add('bg-blue-600/30', 'text-blue-300', 'border-blue-500/50', 'font-bold');
+                }
+            }
         }
 
         function selectBone(bone) {
             selectedBone = bone;
-            document.querySelectorAll('[id^="bone-item-"]').forEach(el => el.classList.remove('bg-blue-600/30', 'text-blue-300'));
+
+            document.querySelectorAll('[id^="bone-item-"]').forEach(el => {
+                el.classList.remove('bg-blue-600/30', 'text-blue-300', 'border-blue-500/50', 'font-bold');
+            });
 
             if (selectedBone) {
                 transformControls.attach(selectedBone);
-                selectedBoneName.textContent = bone.name;
+                selectedBoneRenameInput.value = bone.name;
                 selectedBoneCard.classList.remove('hidden');
                 transformToolbar.classList.remove('hidden');
                 addKeyframeBtn.disabled = false;
+                activeBoneIndicator.textContent = `Osso Ativo: ${bone.name}`;
 
                 const activeBtn = document.getElementById(`bone-item-${bone.name}`);
-                if (activeBtn) activeBtn.classList.add('bg-blue-600/30', 'text-blue-300');
+                if (activeBtn) {
+                    activeBtn.classList.add('bg-blue-600/30', 'text-blue-300', 'border-blue-500/50', 'font-bold');
+                    activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
 
+                highlightMesh.visible = true;
                 updateInputsFromBone();
+                updateHitboxPositions();
             } else {
                 transformControls.detach();
                 selectedBoneCard.classList.add('hidden');
                 transformToolbar.classList.add('hidden');
                 addKeyframeBtn.disabled = true;
+                highlightMesh.visible = false;
+                activeBoneIndicator.textContent = "Nenhum osso selecionado";
             }
+
+            renderTimelineKeyframes();
         }
 
         function updateInputsFromBone() {
@@ -436,26 +684,30 @@
             posY.value = selectedBone.position.y.toFixed(2);
             posZ.value = selectedBone.position.z.toFixed(2);
 
-            const rotYEl = document.getElementById('rotY');
             rotX.value = THREE.MathUtils.radToDeg(selectedBone.rotation.x).toFixed(0);
-            if (rotYEl) rotYEl.value = THREE.MathUtils.radToDeg(selectedBone.rotation.y).toFixed(0);
+            rotY.value = THREE.MathUtils.radToDeg(selectedBone.rotation.y).toFixed(0);
             rotZ.value = THREE.MathUtils.radToDeg(selectedBone.rotation.z).toFixed(0);
         }
 
         function updateBoneFromInputs() {
             if (!selectedBone) return;
-            const rotYEl = document.getElementById('rotY');
+
             selectedBone.position.set(parseFloat(posX.value) || 0, parseFloat(posY.value) || 0, parseFloat(posZ.value) || 0);
             selectedBone.rotation.set(
                 THREE.MathUtils.degToRad(parseFloat(rotX.value) || 0),
-                THREE.MathUtils.degToRad(parseFloat(rotYEl ? rotYEl.value : 0) || 0),
+                THREE.MathUtils.degToRad(parseFloat(rotY.value) || 0),
                 THREE.MathUtils.degToRad(parseFloat(rotZ.value) || 0)
             );
+
             if (skeletonHelper) skeletonHelper.update();
+            updateHitboxPositions();
+            saveProjectState();
         }
 
         function insertKeyframe() {
             if (!selectedBone) return;
+
+            pushHistoryState();
 
             const time = parseFloat(currentTime.toFixed(2));
             const name = selectedBone.name;
@@ -467,12 +719,15 @@
                 scale: selectedBone.scale.clone()
             };
 
-            // Remove o keyframe pré-existente no mesmo timestamp se existir
+            if (!boneKeyframes[name]) boneKeyframes[name] = [];
+            
+            // Remove se já existir no mesmo timestamp
             boneKeyframes[name] = boneKeyframes[name].filter(k => Math.abs(k.time - time) > 0.01);
             boneKeyframes[name].push(frameData);
             boneKeyframes[name].sort((a, b) => a.time - b.time);
 
             renderTimelineKeyframes();
+            saveProjectState();
 
             addKeyframeBtn.classList.add('bg-emerald-600');
             setTimeout(() => addKeyframeBtn.classList.remove('bg-emerald-600'), 400);
@@ -480,15 +735,38 @@
 
         function renderTimelineKeyframes() {
             keyframesContainer.innerHTML = '';
-            Object.keys(boneKeyframes).forEach(bName => {
-                boneKeyframes[bName].forEach(kf => {
-                    const pct = (kf.time / DURATION) * 100;
-                    const dot = document.createElement('div');
-                    dot.className = 'flash-keyframe';
-                    dot.style.left = `${pct}%`;
-                    dot.title = `Keyframe: ${bName} (${kf.time}s)`;
-                    keyframesContainer.appendChild(dot);
-                });
+
+            // Apenas renderiza a timeline do osso SELECIONADO
+            if (!selectedBone) return;
+
+            const kfs = boneKeyframes[selectedBone.name] || [];
+
+            // Desenha barras de interpolação entre keyframes do osso atual
+            for (let i = 0; i < kfs.length - 1; i++) {
+                const k1 = kfs[i];
+                const k2 = kfs[i + 1];
+
+                const startPct = (k1.time / DURATION) * 100;
+                const endPct = (k2.time / DURATION) * 100;
+                const widthPct = endPct - startPct;
+
+                const interpBar = document.createElement('div');
+                interpBar.className = 'flash-interpolation-bar';
+                interpBar.style.left = `${startPct}%`;
+                interpBar.style.width = `${widthPct}%`;
+                interpBar.title = `Interpolação: ${k1.time}s ➔ ${k2.time}s`;
+
+                keyframesContainer.appendChild(interpBar);
+            }
+
+            // Desenha os pontos de Keyframe do osso atual
+            kfs.forEach(kf => {
+                const pct = (kf.time / DURATION) * 100;
+                const dot = document.createElement('div');
+                dot.className = 'flash-keyframe';
+                dot.style.left = `${pct}%`;
+                dot.title = `Keyframe no tempo ${kf.time}s`;
+                keyframesContainer.appendChild(dot);
             });
         }
 
@@ -526,41 +804,171 @@
             currentTimeText.textContent = currentTime.toFixed(2) + 's';
         }
 
+        // Lógica de Interpolação por Osso
         function applyPoseAtTime(time) {
             if (!currentModel) return;
 
             bonesList.forEach(bone => {
                 const kfs = boneKeyframes[bone.name];
-                if (!kfs || kfs.length === 0) return;
+                
+                // 1. Se o osso não tem keyframes, mantém a pose inicial de descanso do FBX
+                if (!kfs || kfs.length === 0) {
+                    const init = initialBoneTransforms.get(bone.uuid);
+                    if (init) {
+                        bone.position.copy(init.position);
+                        bone.quaternion.copy(init.quaternion);
+                        bone.scale.copy(init.scale);
+                    }
+                    return;
+                }
 
+                // 2. Tempo antes do primeiro keyframe
                 if (time <= kfs[0].time) {
-                    bone.position.copy(kfs[0].position);
-                    bone.quaternion.copy(kfs[0].quaternion);
-                    bone.scale.copy(kfs[0].scale);
-                } else if (time >= kfs[kfs.length - 1].time) {
-                    const last = kfs[kfs.length - 1];
+                    const k = kfs[0];
+                    bone.position.copy(k.position);
+                    bone.quaternion.copy(k.quaternion);
+                    bone.scale.copy(k.scale);
+                    return;
+                }
+
+                // 3. Tempo depois do último keyframe
+                const last = kfs[kfs.length - 1];
+                if (time >= last.time) {
                     bone.position.copy(last.position);
                     bone.quaternion.copy(last.quaternion);
                     bone.scale.copy(last.scale);
-                } else {
-                    // Interpolação Linear de Translação e Slerp de Rotação Quaterniana
-                    for (let i = 0; i < kfs.length - 1; i++) {
-                        if (time >= kfs[i].time && time <= kfs[i + 1].time) {
-                            const k1 = kfs[i];
-                            const k2 = kfs[i + 1];
-                            const alpha = (time - k1.time) / (k2.time - k1.time);
+                    return;
+                }
 
-                            bone.position.lerpVectors(k1.position, k2.position, alpha);
-                            bone.quaternion.slerpQuaternions(k1.quaternion, k2.quaternion, alpha);
-                            bone.scale.lerpVectors(k1.scale, k2.scale, alpha);
-                            break;
-                        }
+                // 4. Interpolação do tempo t no intervalo k1 <= t <= k2
+                for (let i = 0; i < kfs.length - 1; i++) {
+                    const k1 = kfs[i];
+                    const k2 = kfs[i + 1];
+
+                    if (time >= k1.time && time <= k2.time) {
+                        const span = k2.time - k1.time;
+                        const alpha = span > 0 ? (time - k1.time) / span : 0;
+                        
+                        bone.position.lerpVectors(k1.position, k2.position, alpha);
+                        bone.quaternion.slerpQuaternions(k1.quaternion, k2.quaternion, alpha);
+                        bone.scale.lerpVectors(k1.scale, k2.scale, alpha);
+                        break;
                     }
                 }
             });
 
             if (skeletonHelper) skeletonHelper.update();
+            updateHitboxPositions();
             if (selectedBone) updateInputsFromBone();
+        }
+
+        function serializeProjectState() {
+            const transforms = {};
+            bonesList.forEach(bone => {
+                transforms[bone.uuid] = {
+                    name: bone.name,
+                    position: bone.position.toArray(),
+                    quaternion: bone.quaternion.toArray(),
+                    scale: bone.scale.toArray()
+                };
+            });
+
+            const keyframes = {};
+            Object.keys(boneKeyframes).forEach(name => {
+                keyframes[name] = (boneKeyframes[name] || []).map(k => ({
+                    time: k.time,
+                    position: k.position.toArray(),
+                    quaternion: k.quaternion.toArray(),
+                    scale: k.scale.toArray()
+                }));
+            });
+
+            return {
+                version: 5,
+                file: currentFileInfo,
+                currentTime,
+                selectedBone: selectedBone ? selectedBone.name : null,
+                transforms,
+                keyframes
+            };
+        }
+
+        function applySerializedState(state) {
+            if (!state || !currentModel) return;
+
+            const byUUID = new Map(bonesList.map(b => [b.uuid, b]));
+            const byName = new Map(bonesList.map(b => [b.name, b]));
+
+            if (state.transforms) {
+                Object.entries(state.transforms).forEach(([uuid, data]) => {
+                    const bone = byUUID.get(uuid) || byName.get(data.name);
+                    if (!bone) return;
+                    if (Array.isArray(data.position)) bone.position.fromArray(data.position);
+                    if (Array.isArray(data.quaternion)) bone.quaternion.fromArray(data.quaternion);
+                    if (Array.isArray(data.scale)) bone.scale.fromArray(data.scale);
+                });
+            }
+
+            boneKeyframes = {};
+            bonesList.forEach(b => boneKeyframes[b.name] = []);
+            if (state.keyframes) {
+                Object.entries(state.keyframes).forEach(([name, arr]) => {
+                    const bone = byName.get(name);
+                    if (!bone) return;
+                    boneKeyframes[name] = (arr || []).map(k => ({
+                        time: Number(k.time) || 0,
+                        position: new THREE.Vector3().fromArray(k.position || [0,0,0]),
+                        quaternion: new THREE.Quaternion().fromArray(k.quaternion || [0,0,0,1]),
+                        scale: new THREE.Vector3().fromArray(k.scale || [1,1,1])
+                    })).sort((a,b) => a.time - b.time);
+                });
+            }
+
+            currentTime = THREE.MathUtils.clamp(Number(state.currentTime) || 0, 0, DURATION);
+            renderBonesList();
+            renderTimelineKeyframes();
+            updateTimelineUI();
+            applyPoseAtTime(currentTime);
+
+            if (state.selectedBone) {
+                const bone = byName.get(state.selectedBone);
+                selectBone(bone || null);
+            } else {
+                selectBone(null);
+            }
+        }
+
+        function saveProjectState(showMessage = false) {
+            if (!currentProjectKey || !currentModel) return;
+            try {
+                localStorage.setItem(currentProjectKey, JSON.stringify(serializeProjectState()));
+                if (showMessage) {
+                    saveProjectBtn.classList.remove('bg-emerald-700');
+                    saveProjectBtn.classList.add('bg-blue-600');
+                    const old = saveProjectBtn.querySelector('span');
+                    if (old) old.textContent = 'Salvo';
+                    setTimeout(() => {
+                        saveProjectBtn.classList.remove('bg-blue-600');
+                        saveProjectBtn.classList.add('bg-emerald-700');
+                        if (old) old.textContent = 'Salvar alterações';
+                    }, 900);
+                }
+            } catch (err) {
+                console.warn('Não foi possível salvar o projeto localmente:', err);
+            }
+        }
+
+        function restoreProjectState() {
+            if (!currentProjectKey || !currentModel) return;
+            const raw = localStorage.getItem(currentProjectKey);
+            if (!raw) return;
+
+            try {
+                const state = JSON.parse(raw);
+                applySerializedState(state);
+            } catch (err) {
+                console.warn('Estado salvo inválido:', err);
+            }
         }
 
         function exportKeyframesJSON() {
