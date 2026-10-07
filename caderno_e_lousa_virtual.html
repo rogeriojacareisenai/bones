@@ -1,0 +1,1522 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Caderno & Lousa Virtual - Anotações e Transformações</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            overflow: hidden;
+        }
+
+        /* Cursor Customizations */
+        .cursor-pen { cursor: crosshair; }
+        .cursor-eraser { cursor: cell; }
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
+
+    <header class="h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between z-30 select-none">
+        <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-2 bg-indigo-600 px-3 py-1.5 rounded-xl shadow-md">
+                <i class="fa-solid fa-graduation-cap text-white text-base"></i>
+                <span class="font-bold text-white text-sm tracking-wide hidden sm:inline">LousaAula Pro</span>
+            </div>
+            
+            <input id="docTitleInput" type="text" value="Anotações de Aula" 
+                class="bg-transparent hover:bg-slate-800/60 focus:bg-slate-800 text-slate-200 font-medium px-2.5 py-1 rounded-lg border border-transparent focus:border-indigo-500 text-sm focus:outline-none transition w-36 sm:w-56 truncate">
+        </div>
+
+        <!-- Page Controls Center -->
+        <div class="flex items-center space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+            <button id="btnPrevPage" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition disabled:opacity-30" title="Página Anterior">
+                <i class="fa-solid fa-chevron-left text-xs"></i>
+            </button>
+            <span id="pageIndicator" class="text-xs font-semibold text-slate-300 px-2 min-w-[75px] text-center">Página 1 / 1</span>
+            <button id="btnNextPage" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition" title="Próxima Página">
+                <i class="fa-solid fa-chevron-right text-xs"></i>
+            </button>
+            <button id="btnAddPage" class="p-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 rounded-lg transition ml-1" title="Nova Página">
+                <i class="fa-solid fa-plus text-xs"></i>
+            </button>
+        </div>
+
+        <!-- Action Controls Right -->
+        <div class="flex items-center space-x-2">
+            <!-- Zoom Controls -->
+            <div class="hidden md:flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-800 mr-1">
+                <button id="btnZoomOut" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg" title="Reduzir Zoom (-)">
+                    <i class="fa-solid fa-minus text-xs"></i>
+                </button>
+                <span id="zoomIndicator" class="text-xs font-mono px-2 text-slate-300">100%</span>
+                <button id="btnZoomIn" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg" title="Aumentar Zoom (+)">
+                    <i class="fa-solid fa-plus text-xs"></i>
+                </button>
+                <button id="btnZoomReset" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg text-xs font-medium" title="Resetar Zoom">
+                    100%
+                </button>
+            </div>
+
+            <!-- Undo / Redo -->
+            <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+                <button id="btnUndo" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition disabled:opacity-30" title="Desfazer (Ctrl+Z)">
+                    <i class="fa-solid fa-rotate-left text-xs"></i>
+                </button>
+                <button id="btnRedo" class="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition disabled:opacity-30" title="Refazer (Ctrl+Y / Ctrl+Shift+Z)">
+                    <i class="fa-solid fa-rotate-right text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Export Dropdown -->
+            <div class="relative group">
+                <button class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs px-3 py-2 rounded-xl shadow transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-download"></i>
+                    <span class="hidden sm:inline">Exportar</span>
+                </button>
+                <div class="absolute right-0 mt-1 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl hidden group-hover:block hover:block z-50 p-1.5">
+                    <button id="btnExportPNG" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-lg flex items-center space-x-2">
+                        <i class="fa-regular fa-file-image text-emerald-400"></i>
+                        <span>Imagem PNG</span>
+                    </button>
+                    <button id="btnExportJPEG" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-lg flex items-center space-x-2">
+                        <i class="fa-regular fa-file-image text-blue-400"></i>
+                        <span>Imagem JPEG</span>
+                    </button>
+                    <button id="btnExportPDF" class="w-full text-left px-3 py-2 text-xs text-slate-200 hover:bg-slate-800 rounded-lg flex items-center space-x-2">
+                        <i class="fa-regular fa-file-pdf text-red-400"></i>
+                        <span>Documento PDF</span>
+                    </button>
+                </div>
+            </div>
+
+            <button id="btnHelp" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition" title="Atalhos e Dicas">
+                <i class="fa-solid fa-circle-question"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="relative flex-1 w-full h-[calc(100vh-3.5rem)] overflow-hidden bg-slate-950 flex">
+        
+        <!-- Floating Primary Toolbar -->
+        <div id="mainToolbar" class="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-2xl max-w-[95vw] overflow-x-auto">
+            <div class="flex items-center space-x-1">
+                <!-- Select & Transform Tool -->
+                <button data-tool="select" class="tool-btn active p-2.5 rounded-xl text-white bg-indigo-600 shadow transition" title="Selecionar, Mover, Rotacionar e Redimensionar (V)">
+                    <i class="fa-solid fa-arrow-pointer text-base"></i>
+                </button>
+
+                <!-- Pan / Hand Tool -->
+                <button data-tool="pan" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Navegar / Pan na Tela (H ou Espaço)">
+                    <i class="fa-solid fa-hand text-base"></i>
+                </button>
+
+                <div class="h-6 w-px bg-slate-800 mx-1"></div>
+
+                <!-- Pen Tool -->
+                <button data-tool="pen" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Caneta (B)">
+                    <i class="fa-solid fa-pen-nib text-base"></i>
+                </button>
+
+                <!-- Highlighter Tool -->
+                <button data-tool="highlighter" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Marca-Texto (M)">
+                    <i class="fa-solid fa-highlighter text-base"></i>
+                </button>
+
+                <!-- Eraser Tool -->
+                <button data-tool="eraser" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Borracha (E)">
+                    <i class="fa-solid fa-eraser text-base"></i>
+                </button>
+
+                <!-- Text Tool -->
+                <button data-tool="text" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Texto (T)">
+                    <i class="fa-solid fa-font text-base"></i>
+                </button>
+
+                <!-- Shapes Dropdown -->
+                <div class="relative group">
+                    <button id="btnShapeMenu" data-tool="shape" class="tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition flex items-center space-x-1" title="Formas Geométricas (S)">
+                        <i id="currentShapeIcon" class="fa-regular fa-square text-base"></i>
+                        <i class="fa-solid fa-chevron-down text-[10px] opacity-60"></i>
+                    </button>
+                    <div class="absolute left-0 top-full mt-2 bg-slate-900 border border-slate-800 rounded-xl shadow-xl hidden group-hover:flex flex-col p-1.5 space-y-1 z-50">
+                        <button data-shape="line" class="shape-option p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center space-x-2 text-xs">
+                            <i class="fa-solid fa-minus w-4"></i>
+                            <span>Linha Reta</span>
+                        </button>
+                        <button data-shape="arrow" class="shape-option p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center space-x-2 text-xs">
+                            <i class="fa-solid fa-arrow-right w-4"></i>
+                            <span>Seta</span>
+                        </button>
+                        <button data-shape="rectangle" class="shape-option p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center space-x-2 text-xs">
+                            <i class="fa-regular fa-square w-4"></i>
+                            <span>Retângulo</span>
+                        </button>
+                        <button data-shape="circle" class="shape-option p-2 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white flex items-center space-x-2 text-xs">
+                            <i class="fa-regular fa-circle w-4"></i>
+                            <span>Círculo / Elipse</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Insert Image -->
+                <button id="btnInsertImage" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Inserir Imagem / Slide (Ctrl+V ou Clique)">
+                    <i class="fa-regular fa-image text-base"></i>
+                </button>
+                <input type="file" id="imageInput" accept="image/*" class="hidden">
+            </div>
+
+            <div class="h-6 w-px bg-slate-800 mx-2"></div>
+
+            <!-- Color Palette -->
+            <div class="flex items-center space-x-1.5">
+                <div id="quickColors" class="flex items-center space-x-1"></div>
+                <div class="relative w-7 h-7 rounded-full border border-slate-700 overflow-hidden cursor-pointer shadow-sm">
+                    <input type="color" id="customColorPicker" value="#000000" class="absolute -top-2 -left-2 w-12 h-12 cursor-pointer border-none opacity-0">
+                    <div id="colorPickerPreview" class="w-full h-full bg-slate-900"></div>
+                </div>
+            </div>
+
+            <div class="h-6 w-px bg-slate-800 mx-2"></div>
+
+            <!-- Popover Triggers -->
+            <div class="flex items-center space-x-1">
+                <button id="btnProperties" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Ajustes de Espessura e Estilo">
+                    <i class="fa-solid fa-sliders text-base"></i>
+                </button>
+                
+                <button id="btnBackgrounds" class="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition" title="Tipo de Papel / Lousa">
+                    <i class="fa-solid fa-border-all text-base"></i>
+                </button>
+
+                <button id="btnDeleteSelected" class="p-2.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition" title="Excluir Objeto Selecionado (Delete/Backspace)">
+                    <i class="fa-regular fa-trash-can text-base"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tool Popover Adjustments -->
+        <div id="propertiesMenu" class="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl hidden w-80 backdrop-blur-md">
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Propriedades do Traço</h4>
+            <div class="mb-4">
+                <div class="flex justify-between text-xs text-slate-300 mb-1">
+                    <span>Espessura</span>
+                    <span id="strokeWidthVal" class="font-mono">4px</span>
+                </div>
+                <input type="range" id="strokeWidth" min="1" max="50" value="4" class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            </div>
+            <div>
+                <div class="flex justify-between text-xs text-slate-300 mb-1">
+                    <span>Opacidade</span>
+                    <span id="opacityVal" class="font-mono">100%</span>
+                </div>
+                <input type="range" id="strokeOpacity" min="10" max="100" value="100" class="w-full accent-indigo-500 bg-slate-800 h-1.5 rounded-lg appearance-none cursor-pointer">
+            </div>
+        </div>
+
+        <!-- Background Menu Popover -->
+        <div id="backgroundsMenu" class="absolute top-20 left-1/2 -translate-x-1/2 z-20 bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl hidden w-80 backdrop-blur-md">
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Estilo de Fundo do Caderno</h4>
+            <div class="grid grid-cols-2 gap-2">
+                <button data-bg="ruled" class="bg-option p-2.5 rounded-xl border border-slate-800 hover:border-indigo-500 bg-slate-950 flex items-center space-x-2 text-xs text-slate-200">
+                    <div class="w-5 h-5 rounded bg-white border border-slate-300 flex flex-col justify-around p-0.5"><div class="h-0.5 bg-blue-300 w-full"></div><div class="h-0.5 bg-blue-300 w-full"></div></div>
+                    <span>Pautado (Linhas)</span>
+                </button>
+                <button data-bg="grid" class="bg-option p-2.5 rounded-xl border border-slate-800 hover:border-indigo-500 bg-slate-950 flex items-center space-x-2 text-xs text-slate-200">
+                    <div class="w-5 h-5 rounded bg-white border border-slate-300 grid grid-cols-2 gap-0.5 p-0.5"><div class="bg-slate-200"></div><div class="bg-slate-200"></div></div>
+                    <span>Quadriculado</span>
+                </button>
+                <button data-bg="dotted" class="bg-option p-2.5 rounded-xl border border-slate-800 hover:border-indigo-500 bg-slate-950 flex items-center space-x-2 text-xs text-slate-200">
+                    <div class="w-5 h-5 rounded bg-white border border-slate-300 flex items-center justify-center text-[8px] text-slate-400">• •</div>
+                    <span>Pontilhado</span>
+                </button>
+                <button data-bg="blackboard" class="bg-option p-2.5 rounded-xl border border-slate-800 hover:border-indigo-500 bg-slate-950 flex items-center space-x-2 text-xs text-slate-200">
+                    <div class="w-5 h-5 rounded bg-emerald-950 border border-emerald-800"></div>
+                    <span>Lousa Escura</span>
+                </button>
+                <button data-bg="whiteboard" class="bg-option p-2.5 rounded-xl border border-slate-800 hover:border-indigo-500 bg-slate-950 flex items-center space-x-2 text-xs text-slate-200">
+                    <div class="w-5 h-5 rounded bg-white border border-slate-300"></div>
+                    <span>Lousa Branca</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Interactive Canvas -->
+        <main id="canvasContainer" class="w-full h-full relative overflow-hidden select-none">
+            <canvas id="mainCanvas" class="absolute top-0 left-0"></canvas>
+            
+            <!-- Dynamic Inline Text Input Overlay -->
+            <textarea id="textOverlay" class="absolute hidden bg-transparent border-2 border-dashed border-indigo-500 text-slate-900 p-1 resize rounded outline-none font-sans leading-snug overflow-hidden z-10" style="min-width: 120px; min-height: 40px;"></textarea>
+        </main>
+
+        <!-- Sidebar Drawer Toggle -->
+        <button id="btnTogglePagesPanel" class="absolute bottom-4 left-4 z-20 bg-slate-900/90 text-slate-300 hover:text-white border border-slate-800 p-2.5 rounded-xl shadow-lg flex items-center space-x-2 text-xs backdrop-blur-md transition">
+            <i class="fa-solid fa-layer-group"></i>
+            <span>Páginas (<span id="pageCountBadge">1</span>)</span>
+        </button>
+
+        <!-- Pages Drawer -->
+        <div id="pagesDrawer" class="absolute bottom-16 left-4 z-20 bg-slate-900/95 border border-slate-800 rounded-2xl p-3 shadow-2xl hidden w-64 backdrop-blur-md max-h-80 flex flex-col">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+                <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Páginas do Caderno</span>
+                <button id="btnDuplicatePage" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center space-x-1" title="Duplicar página atual">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>Duplicar</span>
+                </button>
+            </div>
+            <div id="pagesList" class="overflow-y-auto space-y-2 flex-1 pr-1"></div>
+        </div>
+
+        <button id="btnResetView" class="absolute bottom-4 right-4 z-20 bg-slate-900/90 hover:bg-slate-800 text-slate-300 p-2.5 rounded-xl border border-slate-800 shadow-lg text-xs backdrop-blur-md transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-compress"></i>
+            <span>Centralizar Vista</span>
+        </button>
+    </div>
+
+    <div id="helpModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative text-slate-200">
+            <button id="btnCloseHelp" class="absolute top-4 right-4 text-slate-400 hover:text-white text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <h3 class="text-lg font-bold text-white mb-4 flex items-center space-x-2">
+                <i class="fa-solid fa-keyboard text-indigo-400"></i>
+                <span>Atalhos de Teclado & Transformações</span>
+            </h3>
+
+            <div class="space-y-2.5 text-xs">
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Seleção / Transformação</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">V</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Caneta / Pincel</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">B</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Marca-Texto</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">M</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Borracha</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">E</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Navegar Tela (Pan)</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">H ou Espaço + Arrastar</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Desfazer / Refazer</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">Ctrl+Z / Ctrl+Y ou Ctrl+Shift+Z</kbd>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Mover / Rotacionar / Redimensionar</span>
+                    <span class="text-slate-300 font-medium">Selecione o objeto e use as alças da caixa de seleção</span>
+                </div>
+                <div class="flex justify-between pb-1.5 border-b border-slate-800">
+                    <span class="text-slate-400">Colar Slides / Imagens</span>
+                    <kbd class="bg-slate-800 px-2 py-0.5 rounded font-mono text-indigo-300">Ctrl + V</kbd>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Core Canvas State
+        const state = {
+            docTitle: "Anotações de Aula",
+            pages: [],
+            currentPageIndex: 0,
+            activeTool: 'select', // select, pan, pen, highlighter, eraser, text, shape
+            activeShape: 'rectangle', // line, arrow, rectangle, circle
+            strokeColor: '#000000',
+            strokeWidth: 4,
+            opacity: 1,
+            backgroundType: 'ruled',
+            
+            // Viewport Transfomation (Pan & Zoom)
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            isPanning: false,
+            panStartX: 0,
+            panStartY: 0,
+
+            // Drawing State
+            isDrawing: false,
+            currentPath: [],
+            
+            // Transform & Object Selection Engine
+            selectedIndex: -1,
+            transformMode: null, // 'translate', 'rotate', 'resize-tl', 'resize-tr', 'resize-bl', 'resize-br'
+            transformStart: { x: 0, y: 0 },
+            initialElementState: null
+        };
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvasContainer');
+        const textOverlay = document.getElementById('textOverlay');
+        const customColorPicker = document.getElementById('customColorPicker');
+        const colorPickerPreview = document.getElementById('colorPickerPreview');
+
+        const defaultColors = [
+            { hex: '#000000', name: 'Preto' },
+            { hex: '#1e40af', name: 'Azul' },
+            { hex: '#dc2626', name: 'Vermelho' },
+            { hex: '#15803d', name: 'Verde' },
+            { hex: '#facc15', name: 'Amarelo' },
+            { hex: '#ffffff', name: 'Branco' }
+        ];
+
+        function initApp() {
+            setupWindowResize();
+            loadFromLocalStorage();
+            if (state.pages.length === 0) {
+                addNewPage();
+            } else {
+                renderCurrentPage();
+            }
+            setupPalette();
+            setupEventListeners();
+            updateUI();
+        }
+
+        function setupWindowResize() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            renderCurrentPage();
+        }
+
+        function setupPalette() {
+            const container = document.getElementById('quickColors');
+            container.innerHTML = '';
+            defaultColors.forEach((c) => {
+                const btn = document.createElement('button');
+                btn.className = `w-6 h-6 rounded-full border border-slate-700 transition-transform transform hover:scale-110 shadow-sm ${state.strokeColor === c.hex ? 'ring-2 ring-indigo-500 scale-110' : ''}`;
+                btn.style.backgroundColor = c.hex;
+                btn.title = c.name;
+                btn.onclick = () => setColor(c.hex);
+                container.appendChild(btn);
+            });
+            colorPickerPreview.style.backgroundColor = state.strokeColor;
+        }
+
+        function setColor(hex) {
+            state.strokeColor = hex;
+            customColorPicker.value = hex;
+            colorPickerPreview.style.backgroundColor = hex;
+            setupPalette();
+        }
+
+        function createNewPageObject() {
+            return {
+                id: 'page_' + Date.now(),
+                background: state.backgroundType,
+                elements: [],
+                undoStack: [],
+                redoStack: []
+            };
+        }
+
+        function addNewPage() {
+            const newPage = createNewPageObject();
+            state.pages.push(newPage);
+            state.currentPageIndex = state.pages.length - 1;
+            renderCurrentPage();
+            updatePagesDrawer();
+            saveToLocalStorage();
+        }
+
+        function duplicateCurrentPage() {
+            const current = state.pages[state.currentPageIndex];
+            const duplicate = {
+                id: 'page_' + Date.now(),
+                background: current.background,
+                elements: JSON.parse(JSON.stringify(current.elements)),
+                undoStack: [],
+                redoStack: []
+            };
+            // Reload DOM Image instances for duplicated images
+            duplicate.elements.forEach(e => {
+                if (e.type === 'image' && e.src) {
+                    const img = new Image();
+                    img.src = e.src;
+                    e.imgElement = img;
+                }
+            });
+            state.pages.splice(state.currentPageIndex + 1, 0, duplicate);
+            state.currentPageIndex++;
+            renderCurrentPage();
+            updatePagesDrawer();
+            saveToLocalStorage();
+        }
+
+        function renderCurrentPage() {
+            if (!state.pages[state.currentPageIndex]) return;
+            const curPage = state.pages[state.currentPageIndex];
+            
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            drawBackgroundPattern(curPage.background || state.backgroundType);
+            
+            // Viewport Pan / Zoom
+            ctx.translate(state.panX, state.panY);
+            ctx.scale(state.zoom, state.zoom);
+
+            // Render Page Elements
+            curPage.elements.forEach((elem, index) => {
+                drawElement(elem, index === state.selectedIndex);
+            });
+
+            // Render Drawing Live Path
+            if (state.isDrawing && state.currentPath.length > 0) {
+                drawLivePath();
+            }
+
+            ctx.restore();
+            updatePageIndicator();
+        }
+
+        function drawBackgroundPattern(type) {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            if (type === 'blackboard') {
+                ctx.fillStyle = '#062e22';
+                ctx.fillRect(0, 0, width, height);
+                return;
+            } else if (type === 'whiteboard') {
+                ctx.fillStyle = '#f8fafc';
+                ctx.fillRect(0, 0, width, height);
+                return;
+            } else {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+            }
+
+            ctx.save();
+            ctx.translate(state.panX % (30 * state.zoom), state.panY % (30 * state.zoom));
+            const step = 30 * state.zoom;
+            ctx.lineWidth = 0.8;
+
+            if (type === 'ruled') {
+                ctx.strokeStyle = '#e2e8f0';
+                for (let y = 0; y < height + step; y += step) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+                }
+                ctx.strokeStyle = '#fca5a5';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(60 * state.zoom + (state.panX % (60 * state.zoom)), 0);
+                ctx.lineTo(60 * state.zoom + (state.panX % (60 * state.zoom)), height);
+                ctx.stroke();
+
+            } else if (type === 'grid') {
+                ctx.strokeStyle = '#e2e8f0';
+                for (let x = 0; x < width + step; x += step) {
+                    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+                }
+                for (let y = 0; y < height + step; y += step) {
+                    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+                }
+
+            } else if (type === 'dotted') {
+                ctx.fillStyle = '#cbd5e1';
+                for (let x = 0; x < width + step; x += step) {
+                    for (let y = 0; y < height + step; y += step) {
+                        ctx.beginPath();
+                        ctx.arc(x, y, 1.2 * Math.max(0.5, state.zoom), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        // Get Object Center for Transformation Math
+        function getElementCenter(elem) {
+            const bounds = getUnrotatedBounds(elem);
+            return {
+                x: elem.x !== undefined ? elem.x : bounds.x + bounds.w / 2,
+                y: elem.y !== undefined ? elem.y : bounds.y + bounds.h / 2
+            };
+        }
+
+        function getUnrotatedBounds(elem) {
+            if (elem.type === 'stroke') {
+                if (!elem.points.length) return { x: 0, y: 0, w: 0, h: 0 };
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                elem.points.forEach(p => {
+                    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+                    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+                });
+                return { x: minX, y: minY, w: Math.max(20, maxX - minX), h: Math.max(20, maxY - minY) };
+            } else if (elem.type === 'shape') {
+                const minX = Math.min(elem.x1, elem.x2);
+                const minY = Math.min(elem.y1, elem.y2);
+                return { x: minX, y: minY, w: Math.max(20, Math.abs(elem.x2 - elem.x1)), h: Math.max(20, Math.abs(elem.y2 - elem.y1)) };
+            } else if (elem.type === 'text') {
+                const fontMetrics = elem.fontSize || 20;
+                const lines = elem.text.split('\n');
+                let maxLen = 0;
+                lines.forEach(l => maxLen = Math.max(maxLen, l.length));
+                return { x: elem.x, y: elem.y, w: Math.max(30, maxLen * fontMetrics * 0.6), h: Math.max(20, lines.length * fontMetrics * 1.2) };
+            } else if (elem.type === 'image') {
+                return { x: elem.x, y: elem.y, w: elem.width, h: elem.height };
+            }
+            return { x: 0, y: 0, w: 0, h: 0 };
+        }
+
+        // Render Individual Vector Element
+        function drawElement(elem, isSelected = false) {
+            ctx.save();
+            ctx.globalAlpha = elem.opacity || 1;
+
+            const center = getElementCenter(elem);
+            const rotation = elem.rotation || 0;
+
+            // Apply Object Rotation and Translation Pivot
+            ctx.translate(center.x, center.y);
+            ctx.rotate(rotation);
+            ctx.translate(-center.x, -center.y);
+
+            if (elem.type === 'stroke') {
+                if (elem.points.length > 1) {
+                    ctx.strokeStyle = elem.color;
+                    ctx.lineWidth = elem.width;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+
+                    if (elem.tool === 'highlighter') {
+                        ctx.globalCompositeOperation = 'multiply';
+                        ctx.globalAlpha = 0.4;
+                    }
+
+                    ctx.beginPath();
+                    ctx.moveTo(elem.points[0].x, elem.points[0].y);
+                    for (let i = 1; i < elem.points.length - 1; i++) {
+                        const xc = (elem.points[i].x + elem.points[i + 1].x) / 2;
+                        const yc = (elem.points[i].y + elem.points[i + 1].y) / 2;
+                        ctx.quadraticCurveTo(elem.points[i].x, elem.points[i].y, xc, yc);
+                    }
+                    if (elem.points.length > 1) {
+                        ctx.lineTo(elem.points[elem.points.length - 1].x, elem.points[elem.points.length - 1].y);
+                    }
+                    ctx.stroke();
+                }
+
+            } else if (elem.type === 'shape') {
+                ctx.strokeStyle = elem.color;
+                ctx.lineWidth = elem.width;
+                ctx.fillStyle = elem.color;
+                ctx.lineCap = 'round';
+
+                const { x1, y1, x2, y2, shape } = elem;
+
+                if (shape === 'line') {
+                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                } else if (shape === 'arrow') {
+                    const angle = Math.atan2(y2 - y1, x2 - x1);
+                    const headlen = 12 + elem.width;
+                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(x2, y2);
+                    ctx.lineTo(x2 - headlen * Math.cos(angle - Math.PI / 6), y2 - headlen * Math.sin(angle - Math.PI / 6));
+                    ctx.lineTo(x2 - headlen * Math.cos(angle + Math.PI / 6), y2 - headlen * Math.sin(angle + Math.PI / 6));
+                    ctx.closePath(); ctx.fill();
+                } else if (shape === 'rectangle') {
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                } else if (shape === 'circle') {
+                    const rx = Math.abs(x2 - x1) / 2;
+                    const ry = Math.abs(y2 - y1) / 2;
+                    const cx = (x1 + x2) / 2;
+                    const cy = (y1 + y2) / 2;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, rx, ry, 0, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+
+            } else if (elem.type === 'text') {
+                ctx.font = `${elem.fontSize || 20}px 'Inter', sans-serif`;
+                ctx.fillStyle = elem.color;
+                ctx.textBaseline = 'top';
+                
+                const lines = elem.text.split('\n');
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, elem.x, elem.y + (i * (elem.fontSize || 20) * 1.2));
+                });
+
+            } else if (elem.type === 'image') {
+                if (elem.imgElement && elem.imgElement.complete) {
+                    ctx.drawImage(elem.imgElement, elem.x, elem.y, elem.width, elem.height);
+                }
+            }
+
+            if (isSelected) {
+                const bounds = getUnrotatedBounds(elem);
+                
+                // Outer Selection Border
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2 / state.zoom;
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(bounds.x - 6, bounds.y - 6, bounds.w + 12, bounds.h + 12);
+                ctx.setLineDash([]);
+
+                // Corner Handles for Scaling / Resizing
+                const handleSize = 8 / state.zoom;
+                ctx.fillStyle = '#ffffff';
+                ctx.strokeStyle = '#6366f1';
+                ctx.lineWidth = 2 / state.zoom;
+
+                const corners = [
+                    { x: bounds.x - 6, y: bounds.y - 6 },
+                    { x: bounds.x + bounds.w + 6, y: bounds.y - 6 },
+                    { x: bounds.x - 6, y: bounds.y + bounds.h + 6 },
+                    { x: bounds.x + bounds.w + 6, y: bounds.y + bounds.h + 6 }
+                ];
+
+                corners.forEach(c => {
+                    ctx.fillRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+                    ctx.strokeRect(c.x - handleSize / 2, c.y - handleSize / 2, handleSize, handleSize);
+                });
+
+                // Top Rotation Handle Knob
+                const rotHandleY = bounds.y - 25;
+                const rotHandleX = bounds.x + bounds.w / 2;
+
+                ctx.beginPath();
+                ctx.moveTo(rotHandleX, bounds.y - 6);
+                ctx.lineTo(rotHandleX, rotHandleY);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(rotHandleX, rotHandleY, handleSize / 1.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawLivePath() {
+            if (state.currentPath.length < 1) return;
+            ctx.save();
+            ctx.strokeStyle = state.strokeColor;
+            ctx.lineWidth = state.strokeWidth;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.globalAlpha = state.opacity;
+
+            if (state.activeTool === 'highlighter') {
+                ctx.globalCompositeOperation = 'multiply';
+                ctx.globalAlpha = 0.4;
+            }
+
+            if (state.activeTool === 'pen' || state.activeTool === 'highlighter' || state.activeTool === 'eraser') {
+                if (state.activeTool === 'eraser') {
+                    ctx.strokeStyle = state.backgroundType === 'blackboard' ? '#062e22' : '#ffffff';
+                }
+
+                ctx.beginPath();
+                ctx.moveTo(state.currentPath[0].x, state.currentPath[0].y);
+                for (let i = 1; i < state.currentPath.length; i++) {
+                    ctx.lineTo(state.currentPath[i].x, state.currentPath[i].y);
+                }
+                ctx.stroke();
+
+            } else if (state.activeTool === 'shape') {
+                const start = state.currentPath[0];
+                const end = state.currentPath[state.currentPath.length - 1];
+                drawElement({
+                    type: 'shape',
+                    shape: state.activeShape,
+                    x1: start.x, y1: start.y,
+                    x2: end.x, y2: end.y,
+                    color: state.strokeColor,
+                    width: state.strokeWidth,
+                    opacity: state.opacity
+                });
+            }
+            ctx.restore();
+        }
+
+        // Get Pointer Position mapped to transformed Canvas Space
+        function getCanvasPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            return {
+                x: (clientX - rect.left - state.panX) / state.zoom,
+                y: (clientY - rect.top - state.panY) / state.zoom
+            };
+        }
+
+        // Convert Point taking Object Rotation into consideration
+        function getRotatedPoint(pt, center, angle) {
+            const cos = Math.cos(-angle);
+            const sin = Math.sin(-angle);
+            const dx = pt.x - center.x;
+            const dy = pt.y - center.y;
+            return {
+                x: center.x + (dx * cos - dy * sin),
+                y: center.y + (dx * sin + dy * cos)
+            };
+        }
+
+        function handlePointerDown(e) {
+            if (e.button === 1 || state.activeTool === 'pan' || e.spaceKey) {
+                state.isPanning = true;
+                state.panStartX = e.clientX - state.panX;
+                state.panStartY = e.clientY - state.panY;
+                container.className = "w-full h-full relative overflow-hidden cursor-grabbing select-none";
+                return;
+            }
+
+            const pt = getCanvasPoint(e);
+            const curPage = state.pages[state.currentPageIndex];
+
+            if (state.activeTool === 'select') {
+                // Check if clicking on active selection transformation handles
+                if (state.selectedIndex !== -1) {
+                    const selElem = curPage.elements[state.selectedIndex];
+                    const hitHandle = hitTestHandles(pt, selElem);
+
+                    if (hitHandle) {
+                        state.transformMode = hitHandle;
+                        state.transformStart = pt;
+                        state.initialElementState = JSON.parse(JSON.stringify(selElem));
+                        return;
+                    }
+                }
+
+                // Hit test objects on page from top to bottom
+                let foundIndex = -1;
+                for (let i = curPage.elements.length - 1; i >= 0; i--) {
+                    if (hitTestElement(pt, curPage.elements[i])) {
+                        foundIndex = i;
+                        break;
+                    }
+                }
+
+                state.selectedIndex = foundIndex;
+                if (foundIndex !== -1) {
+                    state.transformMode = 'translate';
+                    state.transformStart = pt;
+                    state.initialElementState = JSON.parse(JSON.stringify(curPage.elements[foundIndex]));
+                }
+                renderCurrentPage();
+                return;
+            }
+
+            if (state.activeTool === 'text') {
+                openTextEditor(e.clientX, e.clientY, pt.x, pt.y);
+                return;
+            }
+
+            if (state.activeTool === 'eraser') {
+                eraseObjectAtPoint(pt);
+                state.isDrawing = true;
+                return;
+            }
+
+            state.isDrawing = true;
+            state.currentPath = [pt];
+        }
+
+        function hitTestHandles(pt, elem) {
+            const center = getElementCenter(elem);
+            const localPt = getRotatedPoint(pt, center, elem.rotation || 0);
+            const bounds = getUnrotatedBounds(elem);
+            const tol = 10 / state.zoom;
+
+            // Rotation Knob
+            const rotX = bounds.x + bounds.w / 2;
+            const rotY = bounds.y - 25;
+            if (Math.hypot(localPt.x - rotX, localPt.y - rotY) <= tol) return 'rotate';
+
+            // Corner Handles
+            if (Math.abs(localPt.x - (bounds.x - 6)) <= tol && Math.abs(localPt.y - (bounds.y - 6)) <= tol) return 'resize-tl';
+            if (Math.abs(localPt.x - (bounds.x + bounds.w + 6)) <= tol && Math.abs(localPt.y - (bounds.y - 6)) <= tol) return 'resize-tr';
+            if (Math.abs(localPt.x - (bounds.x - 6)) <= tol && Math.abs(localPt.y - (bounds.y + bounds.h + 6)) <= tol) return 'resize-bl';
+            if (Math.abs(localPt.x - (bounds.x + bounds.w + 6)) <= tol && Math.abs(localPt.y - (bounds.y + bounds.h + 6)) <= tol) return 'resize-br';
+
+            return null;
+        }
+
+        function hitTestElement(pt, elem) {
+            const center = getElementCenter(elem);
+            const localPt = getRotatedPoint(pt, center, elem.rotation || 0);
+            const bounds = getUnrotatedBounds(elem);
+            
+            return localPt.x >= bounds.x - 8 && localPt.x <= bounds.x + bounds.w + 8 &&
+                   localPt.y >= bounds.y - 8 && localPt.y <= bounds.y + bounds.h + 8;
+        }
+
+        function handlePointerMove(e) {
+            if (state.isPanning) {
+                state.panX = e.clientX - state.panStartX;
+                state.panY = e.clientY - state.panStartY;
+                renderCurrentPage();
+                return;
+            }
+
+            const pt = getCanvasPoint(e);
+
+            // Object Transformation Action
+            if (state.activeTool === 'select' && state.transformMode && state.selectedIndex !== -1) {
+                const curPage = state.pages[state.currentPageIndex];
+                const elem = curPage.elements[state.selectedIndex];
+                const init = state.initialElementState;
+                const center = getElementCenter(init);
+
+                if (state.transformMode === 'translate') {
+                    const dx = pt.x - state.transformStart.x;
+                    const dy = pt.y - state.transformStart.y;
+                    applyTranslation(elem, init, dx, dy);
+
+                } else if (state.transformMode === 'rotate') {
+                    const angle = Math.atan2(pt.y - center.y, pt.x - center.x) - Math.atan2(state.transformStart.y - center.y, state.transformStart.x - center.x);
+                    elem.rotation = (init.rotation || 0) + angle;
+
+                } else if (state.transformMode.startsWith('resize')) {
+                    const dx = pt.x - state.transformStart.x;
+                    const dy = pt.y - state.transformStart.y;
+                    applyScale(elem, init, dx, dy, state.transformMode);
+                }
+
+                renderCurrentPage();
+                return;
+            }
+
+            if (!state.isDrawing) return;
+
+            if (state.activeTool === 'eraser') {
+                eraseObjectAtPoint(pt);
+                return;
+            }
+
+            state.currentPath.push(pt);
+            renderCurrentPage();
+        }
+
+        function applyTranslation(elem, init, dx, dy) {
+            if (elem.type === 'stroke') {
+                elem.points = init.points.map(p => ({ x: p.x + dx, y: p.y + dy }));
+            } else if (elem.type === 'shape') {
+                elem.x1 = init.x1 + dx; elem.y1 = init.y1 + dy;
+                elem.x2 = init.x2 + dx; elem.y2 = init.y2 + dy;
+            } else if (elem.type === 'text' || elem.type === 'image') {
+                elem.x = init.x + dx;
+                elem.y = init.y + dy;
+            }
+        }
+
+        function applyScale(elem, init, dx, dy, mode) {
+            const bounds = getUnrotatedBounds(init);
+            let scaleX = 1, scaleY = 1;
+
+            if (mode === 'resize-br') {
+                scaleX = Math.max(0.2, (bounds.w + dx) / bounds.w);
+                scaleY = Math.max(0.2, (bounds.h + dy) / bounds.h);
+            } else if (mode === 'resize-bl') {
+                scaleX = Math.max(0.2, (bounds.w - dx) / bounds.w);
+                scaleY = Math.max(0.2, (bounds.h + dy) / bounds.h);
+            } else if (mode === 'resize-tr') {
+                scaleX = Math.max(0.2, (bounds.w + dx) / bounds.w);
+                scaleY = Math.max(0.2, (bounds.h - dy) / bounds.h);
+            } else if (mode === 'resize-tl') {
+                scaleX = Math.max(0.2, (bounds.w - dx) / bounds.w);
+                scaleY = Math.max(0.2, (bounds.h - dy) / bounds.h);
+            }
+
+            if (elem.type === 'image') {
+                elem.width = init.width * scaleX;
+                elem.height = init.height * scaleY;
+            } else if (elem.type === 'text') {
+                elem.fontSize = Math.max(10, Math.round((init.fontSize || 20) * Math.max(scaleX, scaleY)));
+            } else if (elem.type === 'shape') {
+                elem.x2 = init.x1 + (init.x2 - init.x1) * scaleX;
+                elem.y2 = init.y1 + (init.y2 - init.y1) * scaleY;
+            } else if (elem.type === 'stroke') {
+                elem.points = init.points.map(p => ({
+                    x: bounds.x + (p.x - bounds.x) * scaleX,
+                    y: bounds.y + (p.y - bounds.y) * scaleY
+                }));
+            }
+        }
+
+        function handlePointerUp() {
+            if (state.isPanning) {
+                state.isPanning = false;
+                container.className = `w-full h-full relative overflow-hidden select-none cursor-${state.activeTool === 'pan' ? 'grab' : 'pen'}`;
+                return;
+            }
+
+            if (state.transformMode) {
+                state.transformMode = null;
+                recordHistory();
+                return;
+            }
+
+            if (!state.isDrawing) return;
+            state.isDrawing = false;
+
+            if (state.currentPath.length > 0) {
+                const curPage = state.pages[state.currentPageIndex];
+                
+                if (state.activeTool === 'pen' || state.activeTool === 'highlighter') {
+                    curPage.elements.push({
+                        type: 'stroke',
+                        tool: state.activeTool,
+                        points: [...state.currentPath],
+                        color: state.strokeColor,
+                        width: state.strokeWidth,
+                        opacity: state.opacity,
+                        rotation: 0
+                    });
+
+                } else if (state.activeTool === 'shape') {
+                    const start = state.currentPath[0];
+                    const end = state.currentPath[state.currentPath.length - 1];
+                    if (Math.abs(end.x - start.x) > 3 || Math.abs(end.y - start.y) > 3) {
+                        curPage.elements.push({
+                            type: 'shape',
+                            shape: state.activeShape,
+                            x1: start.x, y1: start.y,
+                            x2: end.x, y2: end.y,
+                            color: state.strokeColor,
+                            width: state.strokeWidth,
+                            opacity: state.opacity,
+                            rotation: 0
+                        });
+                    }
+                }
+
+                recordHistory();
+                state.currentPath = [];
+                renderCurrentPage();
+            }
+        }
+
+        function eraseObjectAtPoint(pt) {
+            const curPage = state.pages[state.currentPageIndex];
+            const prevLen = curPage.elements.length;
+            curPage.elements = curPage.elements.filter(elem => !hitTestElement(pt, elem));
+            if (curPage.elements.length !== prevLen) {
+                state.selectedIndex = -1;
+                recordHistory();
+                renderCurrentPage();
+            }
+        }
+
+        function deleteSelectedElement() {
+            if (state.selectedIndex !== -1) {
+                const curPage = state.pages[state.currentPageIndex];
+                curPage.elements.splice(state.selectedIndex, 1);
+                state.selectedIndex = -1;
+                recordHistory();
+                renderCurrentPage();
+            }
+        }
+
+        function openTextEditor(clientX, clientY, canvasX, canvasY) {
+            textOverlay.style.left = `${clientX}px`;
+            textOverlay.style.top = `${clientY}px`;
+            textOverlay.style.color = state.strokeColor;
+            textOverlay.style.fontSize = `${18 * state.zoom}px`;
+            textOverlay.value = '';
+            textOverlay.classList.remove('hidden');
+            setTimeout(() => textOverlay.focus(), 50);
+
+            const handleBlur = () => {
+                const val = textOverlay.value.trim();
+                if (val) {
+                    state.pages[state.currentPageIndex].elements.push({
+                        type: 'text',
+                        text: val,
+                        x: canvasX,
+                        y: canvasY,
+                        color: state.strokeColor,
+                        fontSize: 20,
+                        rotation: 0
+                    });
+                    recordHistory();
+                    renderCurrentPage();
+                }
+                textOverlay.classList.add('hidden');
+                textOverlay.removeEventListener('blur', handleBlur);
+            };
+
+            textOverlay.addEventListener('blur', handleBlur);
+        }
+
+        function insertImageFromFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const maxWidth = 350;
+                    const scale = Math.min(1, maxWidth / img.width);
+                    const w = img.width * scale;
+                    const h = img.height * scale;
+
+                    const canvasX = (-state.panX + canvas.width / 2 - w / 2) / state.zoom;
+                    const canvasY = (-state.panY + canvas.height / 2 - h / 2) / state.zoom;
+
+                    const newImgElem = {
+                        type: 'image',
+                        imgElement: img,
+                        src: event.target.result,
+                        x: canvasX,
+                        y: canvasY,
+                        width: w,
+                        height: h,
+                        rotation: 0
+                    };
+
+                    state.pages[state.currentPageIndex].elements.push(newImgElem);
+                    state.selectedIndex = state.pages[state.currentPageIndex].elements.length - 1;
+                    recordHistory();
+                    renderCurrentPage();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function recordHistory() {
+            const curPage = state.pages[state.currentPageIndex];
+            if (!curPage) return;
+
+            const serialized = JSON.stringify(curPage.elements.map(e => {
+                if (e.type === 'image') {
+                    return { ...e, imgElement: undefined };
+                }
+                return e;
+            }));
+
+            curPage.undoStack.push(serialized);
+            curPage.redoStack = [];
+            updateUndoRedoBtns();
+            saveToLocalStorage();
+        }
+
+        function undo() {
+            const curPage = state.pages[state.currentPageIndex];
+            if (curPage && curPage.undoStack.length > 1) {
+                const current = curPage.undoStack.pop();
+                curPage.redoStack.push(current);
+                
+                const previous = curPage.undoStack[curPage.undoStack.length - 1];
+                restoreElementsFromState(previous);
+                state.selectedIndex = -1;
+                renderCurrentPage();
+                updateUndoRedoBtns();
+            }
+        }
+
+        function redo() {
+            const curPage = state.pages[state.currentPageIndex];
+            if (curPage && curPage.redoStack.length > 0) {
+                const next = curPage.redoStack.pop();
+                curPage.undoStack.push(next);
+                restoreElementsFromState(next);
+                state.selectedIndex = -1;
+                renderCurrentPage();
+                updateUndoRedoBtns();
+            }
+        }
+
+        function restoreElementsFromState(jsonStr) {
+            const parsed = JSON.parse(jsonStr);
+            const curPage = state.pages[state.currentPageIndex];
+            curPage.elements = parsed.map(e => {
+                if (e.type === 'image' && e.src) {
+                    const img = new Image();
+                    img.src = e.src;
+                    return { ...e, imgElement: img };
+                }
+                return e;
+            });
+        }
+
+        function updateUndoRedoBtns() {
+            const curPage = state.pages[state.currentPageIndex];
+            document.getElementById('btnUndo').disabled = !curPage || curPage.undoStack.length <= 1;
+            document.getElementById('btnRedo').disabled = !curPage || curPage.redoStack.length === 0;
+        }
+
+        // Export Functions
+        function exportAsImage(format) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tCtx = tempCanvas.getContext('2d');
+
+            const bg = state.pages[state.currentPageIndex].background || state.backgroundType;
+            if (bg === 'blackboard') tCtx.fillStyle = '#062e22';
+            else tCtx.fillStyle = '#ffffff';
+            tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+            const selSaved = state.selectedIndex;
+            state.selectedIndex = -1;
+            renderCurrentPage();
+            tCtx.drawImage(canvas, 0, 0);
+            state.selectedIndex = selSaved;
+            renderCurrentPage();
+
+            const link = document.createElement('a');
+            link.download = `${state.docTitle}_Pagina_${state.currentPageIndex + 1}.${format}`;
+            link.href = tempCanvas.toDataURL(`image/${format === 'jpeg' ? 'jpeg' : 'png'}`, 0.95);
+            link.click();
+        }
+
+        function exportAsPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({ orientation: 'landscape', unit: 'px', format: [canvas.width, canvas.height] });
+
+            const selSaved = state.selectedIndex;
+            state.selectedIndex = -1;
+
+            state.pages.forEach((page, index) => {
+                if (index > 0) pdf.addPage([canvas.width, canvas.height], 'landscape');
+                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvas.width;
+                tempCanvas.height = canvas.height;
+                const tCtx = tempCanvas.getContext('2d');
+                tCtx.fillStyle = '#ffffff';
+                tCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                tCtx.save();
+                tCtx.translate(state.panX, state.panY);
+                tCtx.scale(state.zoom, state.zoom);
+                page.elements.forEach(elem => {
+                    const origCtx = ctx;
+                    window.ctx = tCtx;
+                    drawElement(elem, false);
+                    window.ctx = origCtx;
+                });
+                tCtx.restore();
+
+                const imgData = tempCanvas.toDataURL('image/jpeg', 0.9);
+                pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+            });
+
+            state.selectedIndex = selSaved;
+            renderCurrentPage();
+            pdf.save(`${state.docTitle}.pdf`);
+        }
+
+        function setupEventListeners() {
+            canvas.addEventListener('pointerdown', handlePointerDown);
+            canvas.addEventListener('pointermove', handlePointerMove);
+            canvas.addEventListener('pointerup', handlePointerUp);
+
+            container.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+                const newZoom = Math.min(Math.max(0.3, state.zoom * zoomFactor), 4);
+                
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                state.panX = mouseX - (mouseX - state.panX) * (newZoom / state.zoom);
+                state.panY = mouseY - (mouseY - state.panY) * (newZoom / state.zoom);
+                state.zoom = newZoom;
+
+                document.getElementById('zoomIndicator').innerText = `${Math.round(state.zoom * 100)}%`;
+                renderCurrentPage();
+            }, { passive: false });
+
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                if (e.code === 'KeyV') selectTool('select');
+                else if (e.code === 'KeyB') selectTool('pen');
+                else if (e.code === 'KeyM') selectTool('highlighter');
+                else if (e.code === 'KeyE') selectTool('eraser');
+                else if (e.code === 'KeyT') selectTool('text');
+                else if (e.code === 'KeyH') selectTool('pan');
+                else if (e.code === 'KeyS') selectTool('shape');
+                else if (e.code === 'Delete' || e.code === 'Backspace') deleteSelectedElement();
+                else if (e.ctrlKey && e.code === 'KeyZ') { e.preventDefault(); undo(); }
+                else if (e.ctrlKey && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) { e.preventDefault(); redo(); }
+                else if (e.code === 'Space') { e.preventDefault(); e.spaceKey = true; }
+            });
+
+            window.addEventListener('paste', (e) => {
+                const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+                for (let item of items) {
+                    if (item.type.indexOf('image') === 0) {
+                        const file = item.getAsFile();
+                        insertImageFromFile(file);
+                    }
+                }
+            });
+
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                btn.addEventListener('click', () => selectTool(btn.dataset.tool));
+            });
+
+            document.querySelectorAll('.shape-option').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.activeShape = btn.dataset.shape;
+                    const iconMap = { line: 'fa-minus', arrow: 'fa-arrow-right', rectangle: 'fa-square', circle: 'fa-circle' };
+                    document.getElementById('currentShapeIcon').className = `fa-regular ${iconMap[state.activeShape]} text-base`;
+                    selectTool('shape');
+                });
+            });
+
+            document.querySelectorAll('.bg-option').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    state.backgroundType = btn.dataset.bg;
+                    state.pages[state.currentPageIndex].background = state.backgroundType;
+                    renderCurrentPage();
+                    saveToLocalStorage();
+                    document.getElementById('backgroundsMenu').classList.add('hidden');
+                });
+            });
+
+            customColorPicker.addEventListener('input', (e) => setColor(e.target.value));
+
+            document.getElementById('strokeWidth').addEventListener('input', (e) => {
+                state.strokeWidth = parseInt(e.target.value);
+                document.getElementById('strokeWidthVal').innerText = `${state.strokeWidth}px`;
+            });
+
+            document.getElementById('strokeOpacity').addEventListener('input', (e) => {
+                state.opacity = parseInt(e.target.value) / 100;
+                document.getElementById('opacityVal').innerText = `${e.target.value}%`;
+            });
+
+            document.getElementById('btnProperties').addEventListener('click', () => {
+                document.getElementById('propertiesMenu').classList.toggle('hidden');
+                document.getElementById('backgroundsMenu').classList.add('hidden');
+            });
+
+            document.getElementById('btnBackgrounds').addEventListener('click', () => {
+                document.getElementById('backgroundsMenu').classList.toggle('hidden');
+                document.getElementById('propertiesMenu').classList.add('hidden');
+            });
+
+            document.getElementById('btnUndo').addEventListener('click', undo);
+            document.getElementById('btnRedo').addEventListener('click', redo);
+            document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelectedElement);
+
+            document.getElementById('btnPrevPage').addEventListener('click', () => {
+                if (state.currentPageIndex > 0) {
+                    state.currentPageIndex--;
+                    state.selectedIndex = -1;
+                    renderCurrentPage();
+                    updatePagesDrawer();
+                }
+            });
+
+            document.getElementById('btnNextPage').addEventListener('click', () => {
+                if (state.currentPageIndex < state.pages.length - 1) {
+                    state.currentPageIndex++;
+                } else {
+                    addNewPage();
+                }
+                state.selectedIndex = -1;
+                renderCurrentPage();
+                updatePagesDrawer();
+            });
+
+            document.getElementById('btnAddPage').addEventListener('click', () => addNewPage());
+            document.getElementById('btnDuplicatePage').addEventListener('click', () => duplicateCurrentPage());
+
+            document.getElementById('btnInsertImage').addEventListener('click', () => document.getElementById('imageInput').click());
+            document.getElementById('imageInput').addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) insertImageFromFile(e.target.files[0]);
+            });
+
+            document.getElementById('btnExportPNG').addEventListener('click', () => exportAsImage('png'));
+            document.getElementById('btnExportJPEG').addEventListener('click', () => exportAsImage('jpeg'));
+            document.getElementById('btnExportPDF').addEventListener('click', () => exportAsPDF());
+
+            document.getElementById('btnResetView').addEventListener('click', () => {
+                state.zoom = 1; state.panX = 0; state.panY = 0;
+                document.getElementById('zoomIndicator').innerText = "100%";
+                renderCurrentPage();
+            });
+            document.getElementById('btnZoomIn').addEventListener('click', () => {
+                state.zoom = Math.min(4, state.zoom * 1.15);
+                document.getElementById('zoomIndicator').innerText = `${Math.round(state.zoom * 100)}%`;
+                renderCurrentPage();
+            });
+            document.getElementById('btnZoomOut').addEventListener('click', () => {
+                state.zoom = Math.max(0.3, state.zoom * 0.85);
+                document.getElementById('zoomIndicator').innerText = `${Math.round(state.zoom * 100)}%`;
+                renderCurrentPage();
+            });
+            document.getElementById('btnZoomReset').addEventListener('click', () => {
+                state.zoom = 1;
+                document.getElementById('zoomIndicator').innerText = "100%";
+                renderCurrentPage();
+            });
+
+            document.getElementById('btnTogglePagesPanel').addEventListener('click', () => {
+                const drawer = document.getElementById('pagesDrawer');
+                drawer.classList.toggle('hidden');
+                if (!drawer.classList.contains('hidden')) updatePagesDrawer();
+            });
+
+            document.getElementById('btnHelp').addEventListener('click', () => document.getElementById('helpModal').classList.remove('hidden'));
+            document.getElementById('btnCloseHelp').addEventListener('click', () => document.getElementById('helpModal').classList.add('hidden'));
+
+            document.getElementById('docTitleInput').addEventListener('change', (e) => {
+                state.docTitle = e.target.value || "Anotações de Aula";
+                saveToLocalStorage();
+            });
+
+            window.addEventListener('resize', setupWindowResize);
+        }
+
+        function selectTool(tool) {
+            state.activeTool = tool;
+            if (tool !== 'select') state.selectedIndex = -1;
+
+            document.querySelectorAll('.tool-btn').forEach(btn => {
+                if (btn.dataset.tool === tool) {
+                    btn.className = "tool-btn active p-2.5 rounded-xl text-white bg-indigo-600 shadow transition";
+                } else {
+                    btn.className = "tool-btn p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition";
+                }
+            });
+
+            container.className = `w-full h-full relative overflow-hidden select-none cursor-${tool === 'pan' ? 'grab' : (tool === 'eraser' ? 'eraser' : (tool === 'select' ? 'default' : 'pen'))}`;
+            renderCurrentPage();
+        }
+
+        function updatePageIndicator() {
+            document.getElementById('pageIndicator').innerText = `Página ${state.currentPageIndex + 1} / ${state.pages.length}`;
+            document.getElementById('pageCountBadge').innerText = state.pages.length;
+            document.getElementById('btnPrevPage').disabled = state.currentPageIndex === 0;
+            updateUndoRedoBtns();
+        }
+
+        function updatePagesDrawer() {
+            const list = document.getElementById('pagesList');
+            list.innerHTML = '';
+
+            state.pages.forEach((p, idx) => {
+                const item = document.createElement('div');
+                item.className = `p-2 rounded-xl border ${idx === state.currentPageIndex ? 'border-indigo-500 bg-slate-800' : 'border-slate-800 bg-slate-900 hover:bg-slate-800/50'} flex items-center justify-between cursor-pointer transition`;
+                item.onclick = () => {
+                    state.currentPageIndex = idx;
+                    state.selectedIndex = -1;
+                    renderCurrentPage();
+                    updatePagesDrawer();
+                };
+
+                item.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <span class="w-5 h-5 rounded-full bg-slate-700 text-slate-200 text-[10px] font-bold flex items-center justify-center">${idx + 1}</span>
+                        <span class="text-xs font-medium text-slate-200">Página ${idx + 1}</span>
+                    </div>
+                    ${state.pages.length > 1 ? `
+                        <button onclick="event.stopPropagation(); deletePage(${idx});" class="text-slate-400 hover:text-rose-400 p-1 text-xs" title="Excluir página">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    ` : ''}
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function deletePage(index) {
+            if (confirm(`Excluir a página ${index + 1}?`)) {
+                state.pages.splice(index, 1);
+                if (state.currentPageIndex >= state.pages.length) {
+                    state.currentPageIndex = state.pages.length - 1;
+                }
+                state.selectedIndex = -1;
+                renderCurrentPage();
+                updatePagesDrawer();
+                saveToLocalStorage();
+            }
+        }
+
+        // Local Storage Persistence
+        function saveToLocalStorage() {
+            try {
+                const dataToSave = {
+                    docTitle: state.docTitle,
+                    backgroundType: state.backgroundType,
+                    pages: state.pages.map(p => ({
+                        id: p.id,
+                        background: p.background,
+                        elements: p.elements.map(e => e.type === 'image' ? { ...e, imgElement: undefined } : e)
+                    }))
+                };
+                localStorage.setItem('lousa_virtual_pro_data', JSON.stringify(dataToSave));
+            } catch (err) {
+                console.warn('Falha ao salvar no LocalStorage:', err);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const saved = localStorage.getItem('lousa_virtual_pro_data');
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    state.docTitle = parsed.docTitle || "Anotações de Aula";
+                    document.getElementById('docTitleInput').value = state.docTitle;
+                    state.backgroundType = parsed.backgroundType || 'ruled';
+
+                    if (parsed.pages && parsed.pages.length > 0) {
+                        state.pages = parsed.pages.map(p => {
+                            const restoredElements = p.elements.map(e => {
+                                if (e.type === 'image' && e.src) {
+                                    const img = new Image();
+                                    img.src = e.src;
+                                    return { ...e, imgElement: img };
+                                }
+                                return e;
+                            });
+
+                            const initialHistory = JSON.stringify(restoredElements.map(e => e.type === 'image' ? { ...e, imgElement: undefined } : e));
+
+                            return {
+                                ...p,
+                                undoStack: [initialHistory],
+                                redoStack: [],
+                                elements: restoredElements
+                            };
+                        });
+                    }
+                }
+            } catch (err) {
+                console.warn('Falha ao carregar do LocalStorage:', err);
+            }
+        }
+
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
